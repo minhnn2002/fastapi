@@ -5,7 +5,7 @@ from app.routers import frequency
 app = FastAPI()
 
 app.include_router(content.router)
-# app.include_router(without_content.router)
+app.include_router(frequency.router)
 
 
 @app.get("/")

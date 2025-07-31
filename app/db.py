@@ -1,18 +1,15 @@
 from sqlmodel import Session, create_engine
-from dotenv import load_dotenv
 from urllib.parse import quote_plus
-import os
+from app.config import settings
 
-load_dotenv()
-
-password = quote_plus(os.getenv("DB_PASSWORD"))
+password = quote_plus(settings.DB_PASSWORD)
 DATABASE_URL = (
-    f"mysql+mysqlconnector://{os.getenv('DB_USER')}:"
-    f"{password}@{os.getenv('DB_HOST')}:"
-    f"{os.getenv('DB_PORT')}/{os.getenv('DB_DATABASE')}"
+    f"mysql+mysqlconnector://{settings.DB_USER}:"
+    f"{password}@{settings.DB_HOST}:"
+    f"{settings.DB_PORT}/{settings.DB_DATABASE}"
 )
 
-engine = create_engine(DATABASE_URL, echo=True)
+engine = create_engine(DATABASE_URL)
 
 
 def get_session():
