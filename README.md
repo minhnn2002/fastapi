@@ -18,7 +18,10 @@ This file contains your private information needed to connect to the database:
 - DB_PORT: The port to connect
 - DB_DATABASE: The database name
 
-## Step 3: Run the project on Docker. (If you deploy on k8s, skip to the next step)
+## Step 3: Step up the table
+Go to the db.py file in the app folder and modify the __tablename__ attribute to the table name that you want to query.
+
+## Step 4: Run the project on Docker. (If you deploy on k8s, skip to the next step)
 To run the project on Docker, simply run the command 
 ```bash
 docker compose up -d
@@ -30,7 +33,7 @@ http://localhost:8000/docs
 ```
 to check the available API
 
-## Step 4: Deploy the project on K8S
+## Step 5: Deploy the project on K8S
 First fill the file k8s/secret.yaml. It has the same content like the .env file. Every information must be in the "" bracket.
 I'm using minikube to run so first start the minikube
 ```bash
