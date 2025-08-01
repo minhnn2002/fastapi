@@ -21,7 +21,8 @@ def get_spam_base_on_content(
     to_datetime: Annotated[datetime, Query(description="Time End: (format: YYYY-MM-DD HH:MM:SS)")] = None,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(description="The number of record in one page", enum=[10, 50, 100])] = 10,
-    text_keyword: Annotated[str, Query(description="Filter messages that contain this keyword (case insensitive)")] = None
+    text_keyword: Annotated[str, Query(description="Filter messages that contain this keyword (case insensitive)")] = None,
+    phone_num: Annotated[str, Query(description="Filter phone number that contain this pattern (case insensitive)")] = None
 ):
     # If datetime is not specified then use every date
     if from_datetime is None:
@@ -42,6 +43,8 @@ def get_spam_base_on_content(
     ]
     if text_keyword:
         filters.append(Spam_Info.text_sms.ilike(f"%{text_keyword}%"))
+    if phone_num:
+        filters.append(Spam_Info.sdt_in.ilike(f"%{phone_num}%"))
 
     # Count the frequency of message 
     cte1 = (

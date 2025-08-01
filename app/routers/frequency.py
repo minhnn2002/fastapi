@@ -20,7 +20,8 @@ def get_spam_base_on_frequency(
     from_datetime: Annotated[datetime, Query(description="Time Start: (format: YYYY-MM-DD HH:MM:SS)")] = None,
     to_datetime: Annotated[datetime, Query(description="Time End: (format: YYYY-MM-DD HH:MM:SS)")] = None,
     page: Annotated[int, Query(ge=1)] = 1,
-    page_size: Annotated[int, Query(description="The number of record in one page", enum=[10, 50, 100])] = 10
+    page_size: Annotated[int, Query(description="The number of record in one page", enum=[10, 50, 100])] = 10,
+    phone_num: Annotated[str, Query(description="Filter phone number that contain this pattern (case insensitive)")] = None
 ):
     # If datetime is not specified then use every date
     if from_datetime is None:
@@ -32,6 +33,9 @@ def get_spam_base_on_frequency(
         Spam_Info.ts >= from_datetime,
         Spam_Info.ts <= to_datetime
     ]
+    if phone_num:
+        filters.append(Spam_Info.sdt_in.ilike(f"%{phone_num}%"))
+
 
     # Get the amount of message of a phone number in a period of time
     cte1 = (
