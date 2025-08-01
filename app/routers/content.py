@@ -20,102 +20,104 @@ def get_spam_base_on_content(
     from_datetime: Annotated[datetime, Query(description="Time Start: (format: YYYY-MM-DD HH:MM:SS)")] = None,
     to_datetime: Annotated[datetime, Query(description="Time End: (format: YYYY-MM-DD HH:MM:SS)")] = None,
     page: Annotated[int, Query(ge=1)] = 1,
-    page_size: Annotated[int, Query(description="The number of record in one page", enum=[10, 50, 100])] = 10
+    page_size: Annotated[int, Query(description="The number of record in one page", enum=[10, 50, 100])] = 10,
+    text_keyword: Annotated[str, Query(description="Filter messages that contain this keyword (case insensitive)")] = None
 ):
-    
     # If datetime is not specified then use every date
-    min_datetime = session.exec(select(func.min(Spam_Info.ts))).one()
-    max_datetime = session.exec(select(func.max(Spam_Info.ts))).one()
-    if from_datetime is None or from_datetime < min_datetime:
-        from_datetime = min_datetime
-    if to_datetime is None or to_datetime > max_datetime:
-        to_datetime = max_datetime
+    if from_datetime is None:
+        from_datetime = session.exec(select(func.min(Spam_Info.ts))).one()
+    if to_datetime is None:
+        to_datetime = session.exec(select(func.max(Spam_Info.ts))).one()
 
-    # SQL query to calculate total rows
-    base_query = (
+    if to_datetime < from_datetime:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid time range: 'to_datetime' is earlier than 'from_datetime'."
+        )
+
+    # Create all the filter needed
+    filters = [
+        Spam_Info.ts >= from_datetime,
+        Spam_Info.ts <= to_datetime
+    ]
+    if text_keyword:
+        filters.append(Spam_Info.text_sms.ilike(f"%{text_keyword}%"))
+
+    # Count the frequency of message 
+    cte1 = (
+        select(
+            Spam_Info.sdt_in,
+            func.count().label("frequency")
+        )
+        .where(*filters)
+        .group_by(Spam_Info.sdt_in)
+        .cte("cte1")
+    )
+    
+    # Get the messages 
+    cte2 = (
         select(
             Spam_Info.sdt_in,
             Spam_Info.text_sms,
-            func.count().label("frequency"),
             Spam_Info.ts
         )
-        .where(Spam_Info.ts >= from_datetime)
-        .where(Spam_Info.ts <= to_datetime)
-        .group_by(Spam_Info.sdt_in, Spam_Info.text_sms, Spam_Info.ts)
+        .where(*filters)
+        .cte("cte2")
     )
 
-    sub = base_query.subquery()
-    total_rows = session.exec(select(func.count()).select_from(sub)).one()
-    total_pages = ceil(total_rows/page_size)
+    # Do the query
+    query = (
+        select(
+            cte1.c.sdt_in,
+            cte1.c.frequency,
+            cte2.c.text_sms,
+            cte2.c.ts
+        )
+        .join(cte2, cte1.c.sdt_in == cte2.c.sdt_in)
+        .order_by(cte2.c.ts)
+    ) 
+    records = session.exec(query).all()
 
+    # Format the result
+    result = {}
+    stt = 0
+    for record in records:
+        sdt = record.sdt_in
+        if sdt not in result:
+            result[sdt] = {
+                "stt": stt + 1,
+                "sdt_in": sdt,
+                "frequency": record.frequency,
+                "message": [],
+                "ts": record.ts
+            }
+            result[sdt]["message"].append({
+                "content": record.text_sms,
+                "count": 1
+            })
+            stt += 1
+        else:
+            found = False
+            for msg in result[sdt]["message"]:
+                if msg["content"] == record.text_sms:
+                    msg["count"] += 1
+                    found = True
+                    break
+            if not found:
+                result[sdt]["message"].append({
+                    "content": record.text_sms,
+                    "count": 1
+                })
+
+    final =  list(result.values())
+
+    total_pages = ceil(len(final)/page_size)
     if page > total_pages:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=400,
             detail=f"Page {page} exceeds total pages ({total_pages})"
     )
 
-    
-    # Calculate the offset and query with the offset 
-    offset = (page - 1) * page_size
-    paginated_query = base_query.offset(offset).limit(page_size).order_by(Spam_Info.ts, desc(column("frequency")))
-    records = session.exec(paginated_query).all()
-
-    return [
-        {"stt": i + 1 + offset, **dict(r._mapping)}
-        for i, r in enumerate(records)
-    ]
-
-# @router.put("/")
-# def feedback_spam_base_on_content(
-#     session: Annotated[Session, Depends(get_session)],
-#     user_feedback: Content_Feedback
-# ):
-    # query = select(Spam_Info).where(
-    #     (Spam_Info.sdt_in == user_feedback.sdt_in) &
-    #     (Spam_Info.ts == user_feedback.ts) &
-    #     (Spam_Info.text_sms == user_feedback.sms_text)
-    # )
-    
-    # records = session.exec(query).all()
-    # if not records:
-    #     raise HTTPException(status_code=404, detail="No matching records found")
-
-    # feedback_data = user_feedback.model_dump(exclude_unset=True)
-    # for record in records:
-    #     record.update(feedback_data)
-    #     session.add(record)
-    #     # session.commit()
-    #     session.refresh(record)
-    # return {"message": "Update success"}
-
-    # check_query = """
-    #     SELECT 1 FROM demo WHERE ts = :ts AND sdt_in = :sdt_in AND group_id = :group_id
-    # """
-    # insert_query = """
-    #     INSERT INTO demo (ts, sdt_in, group_id, feedback)
-    #     VALUES (:ts, :sdt_in, :group_id, :feedback)
-    # """
-    # params = {
-    #     "ts": user_feedback.ts,
-    #     "sdt_in": user_feedback.sdt_in,
-    #     "group_id": user_feedback.group_id
-    # }
-
-    # tmp = session.exec("SELECT column_name FROM information_schema.columns WHERE table_name = 'demo'").all()
-    # columns = [row[0] for row in tmp]
-
-    # try:
-    #     # Check the existence of the record
-    #     result = session.exec(text(check_query), params = params).fetchone()
-    #     if not result:
-    #         raise HTTPException(status_code=404, detail="Record not found")
-
-    #     # Update the record
-    #     session.exec(text(insert_query), params = params)
-    #     # session.commit()
-    #     return {"message": "Record updated successfully"}
-    # except Exception as e:
-    #     raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
-
+    return final[(page-1)*page_size:page*page_size]
 
 

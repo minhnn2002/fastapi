@@ -15,30 +15,59 @@ router = APIRouter(
 
 
 @router.get("/")
-def get_spam_base_on_content(
+def get_spam_base_on_frequency(
     session: Annotated[Session, Depends(get_session)],
     from_datetime: Annotated[datetime, Query(description="Time Start: (format: YYYY-MM-DD HH:MM:SS)")] = None,
     to_datetime: Annotated[datetime, Query(description="Time End: (format: YYYY-MM-DD HH:MM:SS)")] = None,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(description="The number of record in one page", enum=[10, 50, 100])] = 10
 ):
-# If datetime is not specified then use every date
+    # If datetime is not specified then use every date
     if from_datetime is None:
         from_datetime = session.exec(select(func.min(Spam_Info.ts))).one()
     if to_datetime is None:
         to_datetime = session.exec(select(func.max(Spam_Info.ts))).one()
 
-# SQL query to calculate total rows
-    base_query = (
+    filters = [
+        Spam_Info.ts >= from_datetime,
+        Spam_Info.ts <= to_datetime
+    ]
+
+    # Get the amount of message of a phone number in a period of time
+    cte1 = (
         select(
             Spam_Info.sdt_in,
-            func.count().label("frequency"),
-            Spam_Info.ts
+            func.count().label("frequency")
         )
-        .where(Spam_Info.ts >= from_datetime)
-        .where(Spam_Info.ts <= to_datetime)
-        .group_by(Spam_Info.sdt_in, Spam_Info.ts)
+        .where(*filters)
+        .group_by(Spam_Info.sdt_in)
+        .cte("cte1")
     )
+
+    cte2 = (
+        select(
+            Spam_Info.sdt_in,
+            Spam_Info.ts,
+            func.row_number().over(
+                partition_by=Spam_Info.sdt_in,
+                order_by=Spam_Info.ts
+            ).label("row_num")
+        )
+        .where(*filters)
+        .cte("cte2")
+    )
+
+    base_query = (
+        select(
+            cte2.c.sdt_in,
+            cte1.c.frequency,
+            cte2.c.ts
+        )
+        .join(cte1, cte1.c.sdt_in == cte2.c.sdt_in)
+        .where(cte2.c.row_num == 1)
+        .order_by(cte2.c.ts)
+    )
+
 
     sub = base_query.subquery()
     total_rows = session.exec(select(func.count()).select_from(sub)).one()
@@ -51,9 +80,9 @@ def get_spam_base_on_content(
     )
 
     
-# Calculate the offset and query with the offset 
+    # Calculate the offset and query with the offset 
     offset = (page - 1) * page_size
-    paginated_query = base_query.offset(offset).limit(page_size).order_by(Spam_Info.ts, desc(column("frequency")))
+    paginated_query = base_query.offset(offset).limit(page_size).order_by(cte2.c.ts, cte1.c.frequency.desc())
     records = session.exec(paginated_query).all()
 
     return [
@@ -61,8 +90,6 @@ def get_spam_base_on_content(
         for i, r in enumerate(records)
     ]
 
-# @router.post("/")
-# def feedback_spam_base_on_content():
     
     
 
