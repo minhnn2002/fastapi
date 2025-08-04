@@ -1,3 +1,6 @@
 .env
-.venv
+.venv/
 test.py
+__pycache__/
+app/__pycache__/
+app/routers/__pycache__/

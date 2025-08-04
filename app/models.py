@@ -3,7 +3,7 @@ from datetime import datetime
 from sqlmodel import Field, SQLModel
 
 
-class Spam_Info(SQLModel, table=True):
+class SMS_Data(SQLModel, table=True):
     __tablename__ = "demo"  
 
     ts: Optional[datetime] = Field(default=None, sa_column_kwargs={"nullable": True}, primary_key=True)
