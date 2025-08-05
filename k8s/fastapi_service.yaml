@@ -3,9 +3,9 @@ kind: Service
 metadata:
   name: fastapi-service
 spec:
-  type: LoadBalancer
+  type: NodePort
   selector:
-    app: fastapi
+    app: bigdatanet-backend
   ports:
     - port: 8000
       targetPort: 8000

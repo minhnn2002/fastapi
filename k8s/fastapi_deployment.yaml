@@ -6,15 +6,17 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app: fastapi
+      app: bigdatanet-backend
   template:
     metadata:
       labels:
-        app: fastapi
+        app: bigdatanet-backend
     spec:
+      imagePullSecrets:
+        - name: icr-registry
       containers:
-        - name: fastapi
-          image: minhhhhh/fastapi:latest
+        - name: bigdatanet-backend
+          image: icr.icenter.ai/data-platform/bigdatanet-backend:0.0.1
           ports:
             - containerPort: 8000
           envFrom:
