@@ -1,5 +1,4 @@
-from pydantic import BaseModel
-from typing import List, Optional, Any
+from pydantic import BaseModel, Field
 from datetime import datetime
 
 class MessageCount(BaseModel):
@@ -37,3 +36,14 @@ class BasePaginatedResponseFrequency(BaseResponse):
     page: int
     limit: int
     total: int
+
+
+class BaseFeedback(BaseModel):
+    sdt_in: str
+    feedback: bool|None = None
+
+class ContentFeedback(BaseFeedback):
+    text_sms: str
+
+class FrequencyFeedback(BaseFeedback):
+    pass

@@ -31,7 +31,7 @@ pip install -r requirements.txt
 ```
 
 ## Step 3: Create the .env file
-Create a file named .env in the root directory with the following content (replace with your actual credentials). This file structure follows the structure of the env_example file.
+Create a file named .env in the root directory with the same content as env_example file (replace with your actual credentials). 
 
 ## Step 4: Step up the table
 Go to the app/db.py file and modify the __tablename__ attribute to match the table name you want to query.

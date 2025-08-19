@@ -1,9 +1,9 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlmodel import Session, select
+from sqlmodel import Session, select, update
 from app.db import get_session
 from app.models import SMS_Data
-from app.schemas import BasePaginatedResponseFrequency, BaseData
+from app.schemas import *
 from datetime import datetime
 from sqlalchemy import func
 from math import ceil
@@ -57,6 +57,7 @@ def get_spam_base_on_frequency(
             func.min(filtered_cte.c.ts).label("ts")
         )
         .group_by(filtered_cte.c.sdt_in)
+        .order_by(func.min(filtered_cte.c.ts))
     )
 
     # A validation for total pages
@@ -95,9 +96,32 @@ def get_spam_base_on_frequency(
         limit=page_size,
         total=total_rows
     )
- 
-
-    
-    
 
 
+
+@router.post("/")
+def feedback_base_on_frequency(
+    session: Annotated[Session, Depends(get_session)],
+    user_feedback: FrequencyFeedback
+):
+    # bulk update
+    stmt = (
+        update(SMS_Data)
+        .where(SMS_Data.sdt_in == user_feedback.sdt_in)
+        .values(feedback=user_feedback.feedback)
+    )
+
+    result = session.exec(stmt)
+
+    # check the result if it is None
+    if result.rowcount == 0:
+        raise HTTPException(
+            status_code=404,
+            detail="Records are not found"
+        )
+
+    session.commit()
+
+    return {
+        "Message": f"Updated {result.rowcount} records",
+    }

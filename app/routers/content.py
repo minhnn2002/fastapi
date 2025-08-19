@@ -1,6 +1,6 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, status, HTTPException, Query
-from sqlmodel import Session, select, func
+from sqlmodel import Session, select, func, update
 from app.db import get_session
 from app.models import SMS_Data
 from app.schemas import *
@@ -25,16 +25,29 @@ def get_spam_base_on_content(
     phone_num: Annotated[str, Query(description="Filter phone number that contain this pattern (case insensitive)")] = None
 ):
     # If datetime is not specified then use every date
-    if from_datetime is None:
-        from_datetime = session.exec(select(func.min(SMS_Data.ts))).one()
-    if to_datetime is None:
-        to_datetime = session.exec(select(func.max(SMS_Data.ts))).one()
+    min_ts = session.exec(select(func.min(SMS_Data.ts))).one()
+    max_ts = session.exec(select(func.max(SMS_Data.ts))).one()
 
-    if to_datetime < from_datetime:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid time range: 'to_datetime' is earlier than 'from_datetime'."
-        )
+    if from_datetime is None and to_datetime is None:
+        from_datetime, to_datetime = min_ts, max_ts
+    else:
+        if from_datetime is None:
+            from_datetime = min_ts
+        if to_datetime is None:
+            to_datetime = max_ts
+
+        # Only validate if user explicitly set something
+        if from_datetime < min_ts or to_datetime > max_ts:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Time range must be within [{min_ts}, {max_ts}]"
+            )
+
+        if to_datetime < from_datetime:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid time range: 'to_datetime' is earlier than 'from_datetime'."
+            )
 
     # Create all the filter needed
     filters = [
@@ -143,5 +156,47 @@ def get_spam_base_on_content(
         limit=page_size,
         total=total
     )
+
+
+# If any message is marked as spam, then all the messages belong to the same group will be marked as spam
+@router.post("/")
+def feedback_base_on_frequency(
+    session: Annotated[Session, Depends(get_session)],
+    user_feedback: ContentFeedback
+):
+    filters = [
+        SMS_Data.sdt_in == user_feedback.sdt_in,
+        SMS_Data.text_sms == user_feedback.text_sms
+    ]
+
+    # Retrieve the group_id of the spammed message
+    group_id = session.exec(select(SMS_Data.group_id).where(*filters)).one()
+
+    if not group_id:
+        raise HTTPException(
+            status_code=404,
+            detail="Records are not found"
+        )
+
+    # Mark all the group as spam
+    stmt = (
+        update(SMS_Data)
+        .where(SMS_Data.group_id == group_id)
+        .values(feedback=user_feedback.feedback)
+    )
+
+    result = session.exec(stmt)
+
+    if result.rowcount == 0:
+        raise HTTPException(
+            status_code=404,
+            detail="Records are not found"
+        )
+
+    session.commit()
+
+    return {
+        "Message": f"Updated {result.rowcount} records",
+    }
 
 
