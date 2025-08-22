@@ -1,10 +1,12 @@
 from typing import Optional
 from datetime import datetime
 from sqlmodel import Field, SQLModel
+from app.config import settings
+
 
 
 class SMS_Data(SQLModel, table=True):
-    __tablename__ = "demo"  
+    __tablename__ = f"{settings.TABLE_NAME}"  
 
     id: str = Field(primary_key=True, max_length=100)
     ts: datetime = Field(primary_key=True)

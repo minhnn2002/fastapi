@@ -99,7 +99,7 @@ def get_spam_base_on_frequency(
 
 
 
-@router.post("/")
+@router.put("/")
 def feedback_base_on_frequency(
     session: Annotated[Session, Depends(get_session)],
     user_feedback: FrequencyFeedback

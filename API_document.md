@@ -24,7 +24,6 @@
 This API filters and groups SMS messages based on time, content keyword, and phone number. It returns statistics like frequency and groups of similar messages.
 
 ### Query Parameters
-
 - If `from_datetime` or `to_datetime` is not provided, the system will use the min and max timestamps from the database.  
 - If `from_datetime` is earlier than the min timestamp, it will be auto-adjusted.  
 - If `to_datetime` is later than the max timestamp, it will also be auto-adjusted.

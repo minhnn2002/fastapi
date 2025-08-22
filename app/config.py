@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     DB_HOST: str
     DB_PORT: int
     DB_DATABASE: str
+    TABLE_NAME: str
 
 
     class Config:

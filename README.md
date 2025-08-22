@@ -33,10 +33,7 @@ pip install -r requirements.txt
 ## Step 3: Create the .env file
 Create a file named .env in the root directory with the same content as env_example file (replace with your actual credentials). 
 
-## Step 4: Step up the table
-Go to the app/db.py file and modify the __tablename__ attribute to match the table name you want to query.
-
-## Step 5: Run the project on Docker. (If you deploy on k8s, skip to the next step)
+## Step 4: Run the project on Docker. (If you deploy on k8s, skip to the next step)
 To run the project on Docker, simply run the command 
 ```bash
 docker compose up -d
@@ -48,7 +45,7 @@ http://localhost:8000/docs
 ```
 to access the interactive API documentation.
 
-## Step 6: Deploy the project on K8S
+## Step 5: Deploy the project on K8S
 Skip this step if you're only running with Docker.
 
 ### 1. Fill in the secrets file:
