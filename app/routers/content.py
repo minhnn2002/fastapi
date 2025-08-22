@@ -159,7 +159,7 @@ def get_spam_base_on_content(
 
 
 # If any message is marked as spam, then all the messages belong to the same group will be marked as spam
-@router.post("/")
+@router.put("/")
 def feedback_base_on_frequency(
     session: Annotated[Session, Depends(get_session)],
     user_feedback: ContentFeedback
