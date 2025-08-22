@@ -1,11 +1,11 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlmodel import Session, select, desc, column
+from sqlmodel import Session, select, update
 from app.db import get_session
-from app.models import Spam_Info
+from app.models import SMS_Data
+from app.schemas import *
 from datetime import datetime
 from sqlalchemy import func
-from app.schemas import Content_Feedback
 from math import ceil
 
 router = APIRouter(
@@ -19,60 +19,48 @@ def get_spam_base_on_frequency(
     session: Annotated[Session, Depends(get_session)],
     from_datetime: Annotated[datetime, Query(description="Time Start: (format: YYYY-MM-DD HH:MM:SS)")] = None,
     to_datetime: Annotated[datetime, Query(description="Time End: (format: YYYY-MM-DD HH:MM:SS)")] = None,
-    page: Annotated[int, Query(ge=1)] = 1,
+    page: Annotated[int, Query(ge=0)] = 0,
     page_size: Annotated[int, Query(description="The number of record in one page", enum=[10, 50, 100])] = 10,
+    text_keyword: Annotated[str, Query(description="Filter messages that contain this keyword (case insensitive)")] = None,
     phone_num: Annotated[str, Query(description="Filter phone number that contain this pattern (case insensitive)")] = None
 ):
     # If datetime is not specified then use every date
     if from_datetime is None:
-        from_datetime = session.exec(select(func.min(Spam_Info.ts))).one()
+        from_datetime = session.exec(select(func.min(SMS_Data.ts))).one()
     if to_datetime is None:
-        to_datetime = session.exec(select(func.max(Spam_Info.ts))).one()
+        to_datetime = session.exec(select(func.max(SMS_Data.ts))).one()
 
     filters = [
-        Spam_Info.ts >= from_datetime,
-        Spam_Info.ts <= to_datetime
+        SMS_Data.ts >= from_datetime,
+        SMS_Data.ts <= to_datetime
     ]
     if phone_num:
-        filters.append(Spam_Info.sdt_in.ilike(f"%{phone_num}%"))
+        filters.append(SMS_Data.sdt_in.ilike(f"%{phone_num}%"))
+    if text_keyword:
+        filters.append(SMS_Data.text_sms.ilike(f"%{text_keyword}%"))
 
-
-    # Get the amount of message of a phone number in a period of time
-    cte1 = (
+    # CTE used for filter data 
+    filtered_cte = (
         select(
-            Spam_Info.sdt_in,
-            func.count().label("frequency")
+            SMS_Data.sdt_in,
+            SMS_Data.ts
         )
         .where(*filters)
-        .group_by(Spam_Info.sdt_in)
-        .cte("cte1")
+        .cte("filtered_cte")
     )
 
-    cte2 = (
-        select(
-            Spam_Info.sdt_in,
-            Spam_Info.ts,
-            func.row_number().over(
-                partition_by=Spam_Info.sdt_in,
-                order_by=Spam_Info.ts
-            ).label("row_num")
-        )
-        .where(*filters)
-        .cte("cte2")
-    )
-
+    # The query to get the frequency and the earliest timestamp of each phone number
     base_query = (
         select(
-            cte2.c.sdt_in,
-            cte1.c.frequency,
-            cte2.c.ts
+            filtered_cte.c.sdt_in,
+            func.count().label("frequency"),
+            func.min(filtered_cte.c.ts).label("ts")
         )
-        .join(cte1, cte1.c.sdt_in == cte2.c.sdt_in)
-        .where(cte2.c.row_num == 1)
-        .order_by(cte2.c.ts)
+        .group_by(filtered_cte.c.sdt_in)
+        .order_by(func.min(filtered_cte.c.ts))
     )
 
-
+    # A validation for total pages
     sub = base_query.subquery()
     total_rows = session.exec(select(func.count()).select_from(sub)).one()
     total_pages = ceil(total_rows/page_size)
@@ -82,19 +70,58 @@ def get_spam_base_on_frequency(
             status_code=400,
             detail=f"Page {page} exceeds total pages ({total_pages})"
     )
-
     
     # Calculate the offset and query with the offset 
-    offset = (page - 1) * page_size
-    paginated_query = base_query.offset(offset).limit(page_size).order_by(cte2.c.ts, cte1.c.frequency.desc())
+    offset = page * page_size
+    paginated_query = base_query.offset(offset).limit(page_size)
     records = session.exec(paginated_query).all()
 
-    return [
-        {"stt": i + 1 + offset, **dict(r._mapping)}
+    result = [
+        BaseData(
+            stt=i + 1 + offset,
+            sdt_in=r.sdt_in,
+            frequency=r.frequency,
+            ts=r.ts
+        )
         for i, r in enumerate(records)
     ]
 
-    
-    
+    return BasePaginatedResponseFrequency(
+        status_code=200,
+        message="Success",
+        data=result,
+        error=False,
+        error_message="",
+        page=page,
+        limit=page_size,
+        total=total_rows
+    )
 
 
+
+@router.post("/")
+def feedback_base_on_frequency(
+    session: Annotated[Session, Depends(get_session)],
+    user_feedback: FrequencyFeedback
+):
+    # bulk update
+    stmt = (
+        update(SMS_Data)
+        .where(SMS_Data.sdt_in == user_feedback.sdt_in)
+        .values(feedback=user_feedback.feedback)
+    )
+
+    result = session.exec(stmt)
+
+    # check the result if it is None
+    if result.rowcount == 0:
+        raise HTTPException(
+            status_code=404,
+            detail="Records are not found"
+        )
+
+    session.commit()
+
+    return {
+        "Message": f"Updated {result.rowcount} records",
+    }

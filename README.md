@@ -1,4 +1,11 @@
-# How to use
+# FastAPI Project
+
+A FastAPI-based project for querying and serving data from a relational database. You can run it locally using Docker or deploy it on Kubernetes using Minikube.
+
+---
+
+## 🚀 How to Use
+
 ## Step 1: Clone the project
 
 ```bash
@@ -10,41 +17,55 @@ Then cd to the main project
 cd fastapi
 ```
 
-## Step 2: Create the .env file
-This file contains your private information needed to connect to the database:
-- DB_USER: The username
-- DB_PASSWORD: The password
-- DB_HOST: The domain name of database
-- DB_PORT: The port to connect
-- DB_DATABASE: The database name
+## Step 2: Create the virtual environment
+Create the virtual enviroment
+```bash
+python -m venv .venv
+source .venv/bin/activate    # On Linux/macOS
+.\.venv\Scripts\activate     # On Windows
+```
 
-## Step 3: Step up the table
-Go to the db.py file in the app folder and modify the __tablename__ attribute to the table name that you want to query.
+Then install the requirement packages:
+```bash
+pip install -r requirements.txt
+```
 
-## Step 4: Run the project on Docker. (If you deploy on k8s, skip to the next step)
+## Step 3: Create the .env file
+Create a file named .env in the root directory with the same content as env_example file (replace with your actual credentials). 
+
+## Step 4: Step up the table
+Go to the app/db.py file and modify the __tablename__ attribute to match the table name you want to query.
+
+## Step 5: Run the project on Docker. (If you deploy on k8s, skip to the next step)
 To run the project on Docker, simply run the command 
 ```bash
 docker compose up -d
 ```
 
-Then go to the 
+After it starts, open your browser and navigate to:
 ```bash
 http://localhost:8000/docs
 ```
-to check the available API
+to access the interactive API documentation.
 
-## Step 5: Deploy the project on K8S
-First fill the file k8s/secret.yaml. It has the same content like the .env file. Every information must be in the "" bracket.
+## Step 6: Deploy the project on K8S
+Skip this step if you're only running with Docker.
+
+### 1. Fill in the secrets file:
+Edit k8s/secret.yaml with the same content as .env, but wrap every value with double quotes.
+
+### 2. Start Minikube:
 I'm using minikube to run so first start the minikube
 ```bash
 minikube start --driver=docker
 ```
 
-Then check the status
+Then verify it's running:
 ```bash
 minikube status
 ```
 
+### 3. Deploy to the cluster:
 If everything is fine, then move to the k8s folder:
 
 ```bash
