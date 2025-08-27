@@ -42,22 +42,28 @@ def get_spam_base_on_frequency(
     # CTE used for filter data 
     filtered_cte = (
         select(
-            SMS_Data.sdt_in,
-            SMS_Data.ts
+            SMS_Data.group_id,
+            SMS_Data.ts,
+            SMS_Data.text_sms,
+            func.row_number().over(
+                partition_by=SMS_Data.group_id,
+                order_by=[SMS_Data.ts.asc(), SMS_Data.id.asc()]
+            ).label("rn"),
+            func.count().over(partition_by=SMS_Data.group_id).label("frequency")
         )
         .where(*filters)
         .cte("filtered_cte")
     )
 
-    # The query to get the frequency and the earliest timestamp of each phone number
     base_query = (
         select(
-            filtered_cte.c.sdt_in,
-            func.count().label("frequency"),
-            func.min(filtered_cte.c.ts).label("ts")
+            filtered_cte.c.group_id,
+            filtered_cte.c.frequency,
+            filtered_cte.c.ts,
+            filtered_cte.c.text_sms
         )
-        .group_by(filtered_cte.c.sdt_in)
-        .order_by(func.min(filtered_cte.c.ts))
+        .where(filtered_cte.c.rn == 1)
+        .order_by(filtered_cte.c.ts)
     )
 
     # A validation for total pages
@@ -77,9 +83,10 @@ def get_spam_base_on_frequency(
     records = session.exec(paginated_query).all()
 
     result = [
-        BaseData(
+        FrequencyResponse(
             stt=i + 1 + offset,
-            sdt_in=r.sdt_in,
+            group_id=r.group_id,
+            text_sms=r.text_sms,
             frequency=r.frequency,
             ts=r.ts
         )
@@ -104,7 +111,7 @@ def feedback_base_on_frequency(
     session: Annotated[Session, Depends(get_session)],
     user_feedback: FrequencyFeedback
 ):
-    # bulk update
+    # Bulk update
     stmt = (
         update(SMS_Data)
         .where(SMS_Data.sdt_in == user_feedback.sdt_in)
@@ -113,7 +120,7 @@ def feedback_base_on_frequency(
 
     result = session.exec(stmt)
 
-    # check the result if it is None
+    # Check the result if it is None
     if result.rowcount == 0:
         raise HTTPException(
             status_code=404,

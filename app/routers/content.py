@@ -1,6 +1,6 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, status, HTTPException, Query
-from sqlmodel import Session, select, func, update
+from sqlmodel import Session, select, func, update, case
 from app.db import get_session
 from app.models import SMS_Data
 from app.schemas import *
@@ -59,80 +59,71 @@ def get_spam_base_on_content(
     if phone_num:
         filters.append(SMS_Data.sdt_in.ilike(f"%{phone_num}%"))
 
-    # CTE used for filter data 
+
+    # Filter 
     filtered_cte = (
         select(
-            SMS_Data.sdt_in,
             SMS_Data.group_id,
+            SMS_Data.sdt_in,
+            SMS_Data.ts,
             SMS_Data.text_sms,
-            SMS_Data.ts
+            func.row_number().over(
+                partition_by=SMS_Data.group_id,
+                order_by=[SMS_Data.ts.asc(), SMS_Data.id.asc()]
+            ).label("rn"),
+            func.count().over(partition_by=SMS_Data.group_id).label("frequency")
         )
-        .where(*filters)
-        .cte("filtered_cte")  
+        .where(*filters)  # filter nếu có
+        .cte("filtered_cte")
     )
 
-    # CTE for counting the frequency of each sdt_in
-    frequency_cte = (
-        select(
-            filtered_cte.c.sdt_in,
-            func.count().label("frequency")
-        )
-        .group_by(filtered_cte.c.sdt_in)
-        .cte("frequency_cte")
-    )
-
-    # Do the query
+    # 
     query = (
         select(
-            frequency_cte.c.sdt_in,
-            frequency_cte.c.frequency,
             filtered_cte.c.group_id,
+            filtered_cte.c.sdt_in,
+            filtered_cte.c.ts,
             filtered_cte.c.text_sms,
-            filtered_cte.c.ts
+            filtered_cte.c.frequency,
+            case((filtered_cte.c.rn == 1, True), else_=False).label("is_first")
         )
-        .join(
-            filtered_cte,
-            frequency_cte.c.sdt_in == filtered_cte.c.sdt_in
-        )
-        .order_by(filtered_cte.c.ts)
-    ) 
+    )
+
     records = session.exec(query).all()
 
     grouped_data = defaultdict(lambda: {
-        "frequency": 0,
+        "frequency": None,
         "ts": None,
-        "message_groups": defaultdict(lambda: defaultdict(int))
+        "agg_message": None,
+        "phones": defaultdict(lambda: defaultdict(int))
     })
 
     for record in records:
-        key = record.sdt_in
-        grouped = grouped_data[key]
-        grouped["frequency"] += 1
-
-        # Get the earliest timestamp
-        if grouped["ts"] is None or record.ts < grouped["ts"]:
-            grouped["ts"] = record.ts
-
-        grouped["message_groups"][record.group_id][record.text_sms] += 1
+        grouped = grouped_data[record.group_id]
+        grouped['frequency'] = record.frequency
+        grouped['ts'] = record.ts
+        if record.is_first is True:
+            grouped['agg_message'] = record.text_sms
+        grouped["phones"][record.sdt_in][record.text_sms] += 1
 
     # Paging
-    sdt_list = list(grouped_data.items())
-    total = len(sdt_list)
+    group_list = list(grouped_data.items())
+    total = len(group_list)
     start = page * page_size
     end = start + page_size
-    paginated = sdt_list[start:end]
+    paginated = group_list[start:end]
 
     # Format the result
     result = []
-    for i, (sdt_in, data) in enumerate(paginated, start=start + 1):
+    for i, (group_id, data) in enumerate(paginated, start=start + 1):
         groups = []
-        for group_id, messages in data["message_groups"].items():
+        for sdt_in, messages in data["phones"].items():
             message_list = [MessageCount(text_sms=text, count=count) for text, count in messages.items()]
-            groups.append(GroupMessages(group_id=group_id, messages=message_list))
+            groups.append(PhoneMessages(sdt_in=sdt_in, messages=message_list))
 
         result.append(SMSGroupedData(
             stt=i,
-            sdt_in=sdt_in,
+            group_id=group_id,
             frequency=data["frequency"],
             ts=data["ts"].isoformat() if isinstance(data["ts"], datetime) else str(data["ts"]),
             message_groups=groups
@@ -160,7 +151,7 @@ def get_spam_base_on_content(
 
 # If any message is marked as spam, then all the messages belong to the same group will be marked as spam
 @router.put("/")
-def feedback_base_on_frequency(
+def feedback_base_on_content(
     session: Annotated[Session, Depends(get_session)],
     user_feedback: ContentFeedback
 ):

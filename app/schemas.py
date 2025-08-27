@@ -5,18 +5,18 @@ class MessageCount(BaseModel):
     text_sms: str
     count: int
 
-class GroupMessages(BaseModel):
-    group_id: str
+class PhoneMessages(BaseModel):
+    sdt_in: str
     messages: list[MessageCount]
 
 class BaseData(BaseModel):
     stt: int
-    sdt_in: str
+    group_id: str
     frequency: int
     ts: datetime
 
 class SMSGroupedData(BaseData):
-    message_groups: list[GroupMessages]
+    message_groups: list[PhoneMessages]
 
 class BaseResponse(BaseModel):
     status_code: int
@@ -31,11 +31,17 @@ class BasePaginatedResponseContent(BaseResponse):
     limit: int
     total: int
 
+
+class FrequencyResponse(BaseData):
+    text_sms: str
+
 class BasePaginatedResponseFrequency(BaseResponse):
-    data: list[BaseData]
+    data: list[FrequencyResponse]
     page: int
     limit: int
     total: int
+
+
 
 
 class BaseFeedback(BaseModel):
