@@ -17,6 +17,7 @@ spec:
       containers:
         - name: bigdatanet-backend
           image: icr.icenter.ai/data-platform/bigdatanet-backend:0.0.1
+          imagePullPolicy: Always
           ports:
             - containerPort: 8000
           envFrom:
