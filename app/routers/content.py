@@ -41,12 +41,6 @@ def get_spam_base_on_content(
             to_datetime = max_ts
 
         # Only validate if user explicitly set something
-        if from_datetime < min_ts or to_datetime > max_ts:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Time range must be within [{min_ts}, {max_ts}]"
-            )
-
         if to_datetime < from_datetime:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

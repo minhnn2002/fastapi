@@ -29,11 +29,23 @@ def get_spam_base_on_frequency(
     phone_num: Annotated[str, Query(description="Filter phone number that contain this pattern (case insensitive)")] = None
 ):
     # If datetime is not specified then use every date
-    if from_datetime is None:
-        from_datetime = session.exec(select(func.min(SMS_Data.ts))).one()
-    if to_datetime is None:
-        to_datetime = session.exec(select(func.max(SMS_Data.ts))).one()
+    min_ts = session.exec(select(func.min(SMS_Data.ts))).one()
+    max_ts = session.exec(select(func.max(SMS_Data.ts))).one()
 
+    if from_datetime is None and to_datetime is None:
+        from_datetime, to_datetime = min_ts, max_ts
+    else:
+        if from_datetime is None:
+            from_datetime = min_ts
+        if to_datetime is None:
+            to_datetime = max_ts
+
+        # Only validate if user explicitly set something
+        if to_datetime < from_datetime:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid time range: 'to_datetime' is earlier than 'from_datetime'."
+            )
     filters = [
         SMS_Data.ts >= from_datetime,
         SMS_Data.ts <= to_datetime
