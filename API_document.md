@@ -9,12 +9,20 @@
   - [Response Example](#response-example)
   - [SMSGroupedData Format](#smsgroupeddata-format)
   - [Possible Errors](#possible-errors)
-- [API 2: GET /frequency/](#api-2-get-frequency)
+- [API 2: PUT /content/](#api-1-get-content)
+  - [Description](#description)
+  - [Query Parameters](#query-parameters)
+  - [Response Example](#response-example)
+- [API 3: GET /frequency/](#api-2-get-frequency)
   - [Description](#description-1)
   - [Query Parameters](#query-parameters-1)
   - [Response Example](#response-example-1)
   - [FrequencyData Format](#frequencydata-format)
   - [Possible Errors](#possible-errors-1)
+- [API 4: PUT /frequency/](#api-2-get-frequency)
+  - [Description](#description-1)
+  - [Query Parameters](#query-parameters-1)
+  - [Response Example](#response-example-1)
 
 ---
 
@@ -104,8 +112,32 @@ This API filters and groups SMS messages based on time, content keyword, and pho
   - `"Page X exceeds total pages (Y)"`
 
 ---
+## 📘 API 2: PUT /content/
 
-## 📘 API 2: GET /frequency/
+### Description
+This API is used to send client feedback, so that they can evaluate whether a phone number is spam or not based on the text message.
+
+If any message is marked as spam, then all the messages belong to the same group will be marked as spam
+
+### Query Parameters
+| Name           | Type      | Required | Description                                                                 |
+|----------------|-----------|----------|-----------------------------------------------------------------------------|
+| sdt_in  | str  | No       | The phone number client wants to give the feedback|
+| text_sms    | str  | No       | The message that phone number send |
+| feedback           | bool       | No       |  Feedback of client whether True(Spam) or False(Not Spam).          |
+
+
+### Response Example
+
+```json
+"Message": "Updated {number} records",
+```
+{number} is the total number of records have been updated in the database.
+
+
+---
+
+## 📘 API 3: GET /frequency/
 
 ### Description
 This API filters SMS messages by time, keyword, and phone number, and **returns only the frequency and first timestamp per phone number** (no message grouping).
@@ -174,3 +206,26 @@ Same as `/content/`:
 - **400 Bad Request**
   - `"Invalid time range: 'to_datetime' is earlier than 'from_datetime'."`
   - `"Page X exceeds total pages (Y)"`
+
+## 📘 API 4: PUT /frequency/
+
+### Description
+This API is used to send client feedback, so that they can evaluate whether a phone number is spam or not based on the frequency message.
+
+If any record is marked as spam, then all the records belong to that phone number will be marked as spam
+
+### Query Parameters
+| Name           | Type      | Required | Description                                                                 |
+|----------------|-----------|----------|-----------------------------------------------------------------------------|
+| sdt_in  | str  | No       | The phone number client wants to give the feedback|
+| feedback           | bool       | No       |  Feedback of client whether True(Spam) or False(Not Spam).          |
+
+
+### Response Example
+
+```json
+"Message": "Updated {number} records",
+```
+{number} is the total number of records have been updated in the database.
+
+

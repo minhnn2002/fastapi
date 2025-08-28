@@ -1,6 +1,8 @@
 .env
 .venv/
 test.py
+test.ipynb
+SMS.md
 __pycache__/
 app/__pycache__/
 app/routers/__pycache__/

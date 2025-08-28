@@ -5,18 +5,23 @@ class MessageCount(BaseModel):
     text_sms: str
     count: int
 
-class GroupMessages(BaseModel):
-    group_id: str
-    messages: list[MessageCount]
 
-class BaseData(BaseModel):
+class BaseDataFrequency(BaseModel):
     stt: int
-    sdt_in: str
+    group_id: str
     frequency: int
     ts: datetime
+    agg_message: str
 
-class SMSGroupedData(BaseData):
-    message_groups: list[GroupMessages]
+class BaseDataContent(BaseDataFrequency):
+    sdt_in: str
+
+class SMSGroupedFrequency(BaseDataFrequency):
+    messages: list[MessageCount]
+
+class SMSGroupedContent(BaseDataContent):
+    messages: list[MessageCount]
+
 
 class BaseResponse(BaseModel):
     status_code: int
@@ -24,26 +29,31 @@ class BaseResponse(BaseModel):
     error: bool = False
     error_message: str|None = None
 
-
 class BasePaginatedResponseContent(BaseResponse):
-    data: list[SMSGroupedData]|None = None
+    data: list[SMSGroupedContent]|None = None
     page: int
     limit: int
     total: int
 
 class BasePaginatedResponseFrequency(BaseResponse):
-    data: list[BaseData]
+    data: list[SMSGroupedFrequency]|None = None
     page: int
     limit: int
     total: int
 
 
-class BaseFeedback(BaseModel):
-    sdt_in: str
-    feedback: bool|None = None
 
-class ContentFeedback(BaseFeedback):
-    text_sms: str
+
+class BaseFeedback(BaseModel):
+    feedback: bool|None = None
+    group_id: str
+
 
 class FrequencyFeedback(BaseFeedback):
-    pass
+    text_sms: str
+
+class ContentFeedback(FrequencyFeedback):
+    sdt_in: str
+    
+
+

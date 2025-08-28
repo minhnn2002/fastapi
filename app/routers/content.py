@@ -1,12 +1,16 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, status, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlmodel import Session, select, func, update
 from app.db import get_session
 from app.models import SMS_Data
 from app.schemas import *
-from datetime import datetime
+from datetime import datetime, timedelta
 from math import ceil
 from collections import defaultdict
+from pandas import DataFrame
+import io
+
 
 router = APIRouter(
     prefix="/content",
@@ -59,83 +63,78 @@ def get_spam_base_on_content(
     if phone_num:
         filters.append(SMS_Data.sdt_in.ilike(f"%{phone_num}%"))
 
-    # CTE used for filter data 
-    filtered_cte = (
+    stmt = (
         select(
-            SMS_Data.sdt_in,
             SMS_Data.group_id,
+            SMS_Data.sdt_in,
+            SMS_Data.ts,
             SMS_Data.text_sms,
-            SMS_Data.ts
+            func.count().over(
+                partition_by=[SMS_Data.group_id, SMS_Data.sdt_in]
+            ).label("frequency"),
+            func.first_value(SMS_Data.text_sms).over(
+                partition_by=[SMS_Data.group_id, SMS_Data.sdt_in],
+                order_by=[SMS_Data.ts.asc(), SMS_Data.id.asc()]
+            ).label("first_message"),
+            func.min(SMS_Data.ts).over(
+                partition_by=[SMS_Data.group_id, SMS_Data.sdt_in]
+            ).label("first_ts")
         )
-        .where(*filters)
-        .cte("filtered_cte")  
+        .where(*filters) 
     )
 
-    # CTE for counting the frequency of each sdt_in
-    frequency_cte = (
-        select(
-            filtered_cte.c.sdt_in,
-            func.count().label("frequency")
-        )
-        .group_by(filtered_cte.c.sdt_in)
-        .cte("frequency_cte")
-    )
-
-    # Do the query
-    query = (
-        select(
-            frequency_cte.c.sdt_in,
-            frequency_cte.c.frequency,
-            filtered_cte.c.group_id,
-            filtered_cte.c.text_sms,
-            filtered_cte.c.ts
-        )
-        .join(
-            filtered_cte,
-            frequency_cte.c.sdt_in == filtered_cte.c.sdt_in
-        )
-        .order_by(filtered_cte.c.ts)
-    ) 
-    records = session.exec(query).all()
+    records = session.exec(stmt).all()
 
     grouped_data = defaultdict(lambda: {
-        "frequency": 0,
+        "frequency": None,
         "ts": None,
-        "message_groups": defaultdict(lambda: defaultdict(int))
+        "agg_message": None,
+        "messages": []
     })
 
     for record in records:
-        key = record.sdt_in
+        key = (record.group_id, record.sdt_in)
         grouped = grouped_data[key]
-        grouped["frequency"] += 1
+        grouped['frequency'] = record.frequency
+        grouped['ts'] = record.first_ts
+        grouped["agg_message"] = record.first_message
+        
+        # Check if the message is existed or not
+        found = None
+        for m in grouped["messages"]:
+            if m["text_sms"] == record.text_sms:
+                found = m
+                break
 
-        # Get the earliest timestamp
-        if grouped["ts"] is None or record.ts < grouped["ts"]:
-            grouped["ts"] = record.ts
-
-        grouped["message_groups"][record.group_id][record.text_sms] += 1
+        if found:
+            # If existed, increment count
+            found["count"] += 1
+        else:
+            # Otherwise, add a new message
+            grouped["messages"].append({
+                "text_sms": record.text_sms,
+                "count": 1
+            })
 
     # Paging
-    sdt_list = list(grouped_data.items())
-    total = len(sdt_list)
+    group_list = list(grouped_data.items())
+    total = len(group_list)
     start = page * page_size
     end = start + page_size
-    paginated = sdt_list[start:end]
+    paginated = group_list[start:end]
 
     # Format the result
     result = []
-    for i, (sdt_in, data) in enumerate(paginated, start=start + 1):
-        groups = []
-        for group_id, messages in data["message_groups"].items():
-            message_list = [MessageCount(text_sms=text, count=count) for text, count in messages.items()]
-            groups.append(GroupMessages(group_id=group_id, messages=message_list))
-
-        result.append(SMSGroupedData(
+    for i, ((group_id, sdt_in), data) in enumerate(paginated, start=start + 1):
+        message_list = [MessageCount(text_sms=m["text_sms"], count=m["count"]) for m in data["messages"]]
+        result.append(SMSGroupedContent(
             stt=i,
-            sdt_in=sdt_in,
+            group_id=group_id,
+            sdt_in = sdt_in,
             frequency=data["frequency"],
             ts=data["ts"].isoformat() if isinstance(data["ts"], datetime) else str(data["ts"]),
-            message_groups=groups
+            agg_message=data["agg_message"],
+            messages=message_list
         ))
 
     # Check if the current page exceed the total pages
@@ -147,7 +146,7 @@ def get_spam_base_on_content(
     )
 
     return BasePaginatedResponseContent(
-        status_code=200,
+        status_code=status.HTTP_200_OK,
         message="Success",
         data=result,
         error=False,
@@ -158,30 +157,117 @@ def get_spam_base_on_content(
     )
 
 
+@router.get("/export")
+def export_content_data(
+    session: Annotated[Session, Depends(get_session)],
+    from_datetime: Annotated[datetime, Query(description="Time Start: (format: YYYY-MM-DD HH:MM:SS)")] = None,
+    to_datetime: Annotated[datetime, Query(description="Time End: (format: YYYY-MM-DD HH:MM:SS)")] = None,
+    text_keyword: Annotated[str, Query(description="Filter messages that contain this keyword (case insensitive)")] = None,
+    phone_num: Annotated[str, Query(description="Filter phone number that contain this pattern (case insensitive)")] = None
+):
+    # Time validation
+    min_ts = session.exec(select(func.min(SMS_Data.ts))).one()
+    max_ts = session.exec(select(func.max(SMS_Data.ts))).one()
+
+    if from_datetime is None and to_datetime is None:
+        to_datetime = max_ts
+        from_datetime = to_datetime - timedelta(hours=1)
+    else:
+        if from_datetime is None:
+            from_datetime = max(to_datetime - timedelta(hours=1), min_ts)
+
+        if to_datetime is None:
+            to_datetime = min(from_datetime + timedelta(hours=1), max_ts)
+
+        # Validate only if user explicitly sets values
+        if from_datetime < min_ts or to_datetime > max_ts:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Time range must be within [{min_ts}, {max_ts}]"
+            )
+
+        if to_datetime < from_datetime:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid time range: 'to_datetime' is earlier than 'from_datetime'."
+            )
+
+        if to_datetime - from_datetime > timedelta(hours=1):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Time range cannot exceed 1 hour."
+            )
+
+
+    # Create all the filter needed
+    filters = [
+        SMS_Data.ts >= from_datetime,
+        SMS_Data.ts <= to_datetime
+    ]
+    if text_keyword:
+        filters.append(SMS_Data.text_sms.ilike(f"%{text_keyword}%"))
+    if phone_num:
+        filters.append(SMS_Data.sdt_in.ilike(f"%{phone_num}%"))
+
+    subq = (
+        select(
+            SMS_Data.group_id,
+            SMS_Data.sdt_in,
+            func.count().over(
+                partition_by=[SMS_Data.group_id, SMS_Data.sdt_in]
+            ).label("frequency"),
+            func.first_value(SMS_Data.text_sms).over(
+                partition_by=[SMS_Data.group_id, SMS_Data.sdt_in],
+                order_by=[SMS_Data.ts.asc(), SMS_Data.id.asc()]
+            ).label("first_message"),
+            func.min(SMS_Data.ts).over(
+                partition_by=[SMS_Data.group_id, SMS_Data.sdt_in]
+            ).label("first_ts"),
+            func.row_number().over(
+                partition_by=[SMS_Data.group_id, SMS_Data.sdt_in],
+                order_by=[SMS_Data.ts.asc(), SMS_Data.id.asc()]
+            ).label("rn")
+        )
+        .where(*filters)
+        .subquery()
+    )
+
+    # Lấy kết quả cuối cùng (chỉ rn=1)
+    stmt = select(
+        subq.c.group_id,
+        subq.c.sdt_in,
+        subq.c.frequency,
+        subq.c.first_message,
+        subq.c.first_ts
+    ).where(subq.c.rn == 1)
+
+    result = session.exec(stmt).all()
+    df = DataFrame(result, columns=["group_id", "sdt_in", "frequency", "first_message", "first_ts"])
+
+    stream = io.StringIO()
+    df.to_csv(stream, index=False)
+
+    response = StreamingResponse(
+        iter([stream.getvalue()]),
+        media_type="text/csv"
+    )
+    response.headers["Content-Disposition"] = "attachment; filename=content_export.csv"
+    return response
+
 # If any message is marked as spam, then all the messages belong to the same group will be marked as spam
 @router.put("/")
-def feedback_base_on_frequency(
+def feedback_base_on_content(
     session: Annotated[Session, Depends(get_session)],
     user_feedback: ContentFeedback
 ):
-    filters = [
-        SMS_Data.sdt_in == user_feedback.sdt_in,
-        SMS_Data.text_sms == user_feedback.text_sms
-    ]
-
-    # Retrieve the group_id of the spammed message
-    group_id = session.exec(select(SMS_Data.group_id).where(*filters)).one()
-
-    if not group_id:
-        raise HTTPException(
-            status_code=404,
-            detail="Records are not found"
-        )
-
     # Mark all the group as spam
     stmt = (
         update(SMS_Data)
-        .where(SMS_Data.group_id == group_id)
+        .where(
+            SMS_Data.group_id == user_feedback.group_id, 
+            SMS_Data.sdt_in == user_feedback.sdt_in,
+            SMS_Data.text_sms == user_feedback.text_sms
+        )
         .values(feedback=user_feedback.feedback)
     )
 
@@ -190,13 +276,20 @@ def feedback_base_on_frequency(
     if result.rowcount == 0:
         raise HTTPException(
             status_code=404,
-            detail="Records are not found"
+            detail="No records matched your condition"
         )
 
     session.commit()
 
-    return {
-        "Message": f"Updated {result.rowcount} records",
-    }
+    return BaseResponse(
+        status_code = status.HTTP_200_OK,
+        message = f"Updated {result.rowcount} records",
+        error = False,
+        error_message = None
+    ) 
+
+
+
+
 
 
