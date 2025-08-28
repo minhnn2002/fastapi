@@ -260,31 +260,13 @@ def feedback_base_on_content(
     session: Annotated[Session, Depends(get_session)],
     user_feedback: ContentFeedback
 ):
-    filters = [
-        SMS_Data.sdt_in == user_feedback.sdt_in,
-        SMS_Data.text_sms == user_feedback.text_sms
-    ]
-
-    # Retrieve the group_id of the spammed message
-    group_id = session.exec(
-        select(SMS_Data.group_id).where(
-            SMS_Data.sdt_in == user_feedback.sdt_in,
-            SMS_Data.text_sms == user_feedback.text_sms
-        )
-    ).first()
-
-    if not group_id:
-        raise HTTPException(
-            status_code=404,
-            detail="Records are not found"
-        )
-
     # Mark all the group as spam
     stmt = (
         update(SMS_Data)
         .where(
-            SMS_Data.group_id == group_id, 
-            SMS_Data.sdt_in == user_feedback.sdt_in
+            SMS_Data.group_id == user_feedback.group_id, 
+            SMS_Data.sdt_in == user_feedback.sdt_in,
+            SMS_Data.text_sms == user_feedback.text_sms
         )
         .values(feedback=user_feedback.feedback)
     )
@@ -294,14 +276,18 @@ def feedback_base_on_content(
     if result.rowcount == 0:
         raise HTTPException(
             status_code=404,
-            detail="Records are not found"
+            detail="No records matched your condition"
         )
 
     session.commit()
 
-    return {
-        "Message": f"Updated {result.rowcount} records",
-    }
+    return BaseResponse(
+        status_code = status.HTTP_200_OK,
+        message = f"Updated {result.rowcount} records",
+        error = False,
+        error_message = None
+    ) 
+
 
 
 

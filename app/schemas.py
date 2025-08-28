@@ -46,6 +46,7 @@ class BasePaginatedResponseFrequency(BaseResponse):
 
 class BaseFeedback(BaseModel):
     feedback: bool|None = None
+    group_id: str
 
 
 class FrequencyFeedback(BaseFeedback):

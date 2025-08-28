@@ -238,21 +238,13 @@ def feedback_base_on_frequency(
     session: Annotated[Session, Depends(get_session)],
     user_feedback: FrequencyFeedback
 ):
-    group_ids = session.exec(
-        select(SMS_Data.group_id)
-        .where(SMS_Data.text_sms == user_feedback.text_sms)
-        .distinct()
-    ).all()
-
-    if not group_ids:
-        raise HTTPException(
-            status_code=404,
-            detail="Records are not found"
-        )
 
     stmt = (
         update(SMS_Data)
-        .where(SMS_Data.group_id.in_(group_ids))
+        .where(
+            SMS_Data.group_id == user_feedback.group_id,
+            SMS_Data.text_sms == user_feedback.text_sms
+        )
         .values(feedback=user_feedback.feedback)
     )
     result = session.exec(stmt)
@@ -261,11 +253,14 @@ def feedback_base_on_frequency(
     if result.rowcount == 0:
         raise HTTPException(
             status_code=404,
-            detail="Records are not found"
+            detail="No records matched your condition"
         )
 
     session.commit()
 
-    return {
-        "Message": f"Updated {result.rowcount} records",
-    }
+    return BaseResponse(
+        status_code = status.HTTP_200_OK,
+        message = f"Updated {result.rowcount} records",
+        error = False,
+        error_message = None
+    ) 
