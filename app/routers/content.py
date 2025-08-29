@@ -168,17 +168,10 @@ def export_content_data(
         from_datetime = to_datetime - timedelta(hours=1)
     else:
         if from_datetime is None:
-            from_datetime = max(to_datetime - timedelta(hours=1), min_ts)
+            from_datetime = to_datetime - timedelta(hours=1)
 
         if to_datetime is None:
-            to_datetime = min(from_datetime + timedelta(hours=1), max_ts)
-
-        # Validate only if user explicitly sets values
-        if from_datetime < min_ts or to_datetime > max_ts:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Time range must be within [{min_ts}, {max_ts}]"
-            )
+            to_datetime = from_datetime + timedelta(hours=1)
 
         if to_datetime < from_datetime:
             raise HTTPException(
@@ -248,19 +241,17 @@ def export_content_data(
     response.headers["Content-Disposition"] = "attachment; filename=content_export.csv"
     return response
 
-# If any message is marked as spam, then all the messages belong to the same group will be marked as spam
+
 @router.put("/")
 def feedback_base_on_content(
     session: Annotated[Session, Depends(get_session)],
     user_feedback: ContentFeedback
 ):
-    # Mark all the group as spam
     stmt = (
         update(SMS_Data)
         .where(
             SMS_Data.group_id == user_feedback.group_id, 
-            SMS_Data.sdt_in == user_feedback.sdt_in,
-            SMS_Data.text_sms == user_feedback.text_sms
+            SMS_Data.sdt_in == user_feedback.sdt_in
         )
         .values(feedback=user_feedback.feedback)
     )

@@ -1,231 +1,585 @@
+# 📑 Mục lục {#muc-luc}
 
-# 📚 SMS API Documentation
-
-## 📑 Table of Contents
-
-- [API 1: GET /content/](#api-1-get-content)
-  - [Description](#description)
-  - [Query Parameters](#query-parameters)
-  - [Response Example](#response-example)
-  - [SMSGroupedData Format](#smsgroupeddata-format)
-  - [Possible Errors](#possible-errors)
-- [API 2: PUT /content/](#api-1-get-content)
-  - [Description](#description)
-  - [Query Parameters](#query-parameters)
-  - [Response Example](#response-example)
-- [API 3: GET /frequency/](#api-2-get-frequency)
-  - [Description](#description-1)
-  - [Query Parameters](#query-parameters-1)
-  - [Response Example](#response-example-1)
-  - [FrequencyData Format](#frequencydata-format)
-  - [Possible Errors](#possible-errors-1)
-- [API 4: PUT /frequency/](#api-2-get-frequency)
-  - [Description](#description-1)
-  - [Query Parameters](#query-parameters-1)
-  - [Response Example](#response-example-1)
-
+- [Các API về content](#content)
+  - [GET /content/ ](#get-content)
+    - [Mô tả](#mo-ta-get-content)
+    - [Tham số truy vấn](#tham-so-truy-van-get-content)
+    - [Ví dụ phản hồi](#vi-du-phan-hoi-get-content)
+    - [Các trường phản hồi](#cac-truong-phan-hoi-get-content)
+    - [Định dạng SMSGroupedContent](#dinh-dang-smsgroupedcontent)
+  - [GET /content/export](#export-get-content)
+    - [Mô tả](#mo-ta-export-get-content)
+    - [Tham số truy vấn](#tham-so-truy-van-export-get-content)
+    - [Ví dụ phản hồi](#vi-du-phan-hoi-export-get-content)
+  - [PUT /content/](#put-content)
+    - [Mô tả](#mo-ta-put-content)
+    - [Tham số truy vấn](#tham-so-truy-van-put-content)
+    - [Ví dụ phản hồi](#vi-du-phan-hoi-put-content)
+    - [Các trường phản hồi](#cac-truong-phan-hoi-put-content)
+- [Các API về frequency](#frequency)
+  - [GET /frequency/ ](#get-frequency)
+    - [Mô tả](#mo-ta-get-frequency)
+    - [Tham số truy vấn](#tham-so-truy-van-get-frequency)
+    - [Ví dụ phản hồi](#vi-du-phan-hoi-get-frequency)
+    - [Các trường phản hồi](#cac-truong-phan-hoi-get-frequency)
+    - [Định dạng SMSGroupedFrequency](#dinh-dang-smsgroupedfrequency)
+  - [GET /frequency/export](#export-get-frequency)
+    - [Mô tả](#mo-ta-export-get-frequency)
+    - [Tham số truy vấn](#tham-so-truy-van-export-get-frequency)
+    - [Ví dụ phản hồi](#vi-du-phan-hoi-export-get-frequency)
+  - [PUT /frequency/](#put-frequency)
+    - [Mô tả](#mo-ta-put-frequency)
+    - [Tham số truy vấn](#tham-so-truy-van-put-frequency)
+    - [Ví dụ phản hồi](#vi-du-phan-hoi-put-frequency)
+    - [Các trường phản hồi](#cac-truong-phan-hoi-put-frequency)
 ---
 
-## 📘 API 1: GET /content/
+# Các API về content {#content}
+## GET /content/ {#get-content}
+### Mô tả {#mo-ta-get-content}
+API này tiến hành lọc dựa trên thời gian, nội dung tin nhắn và số điện thoại. Sau đó tiến hành nhóm theo `group_id` và sau đó là `sdt_in`.
 
-### Description
-This API filters and groups SMS messages based on time, content keyword, and phone number. It returns statistics like frequency and groups of similar messages.
+### Tham số truy vấn {#tham-so-truy-van-get-content}
 
-### Query Parameters
-- If `from_datetime` or `to_datetime` is not provided, the system will use the min and max timestamps from the database.  
-- If `from_datetime` is earlier than the min timestamp, it will be auto-adjusted.  
-- If `to_datetime` is later than the max timestamp, it will also be auto-adjusted.
+| Tên            | Kiểu     | Yêu cầu | Mô tả                                                                      |
+|----------------|----------|----------|----------------------------------------------------------------------------|
+| from_datetime  | datetime | Không    | Thời gian bắt đầu, định dạng `YYYY-MM-DD HH:MM:SS`. Mặc định là mốc thời gian tối thiểu trong cơ sở dữ liệu.                       |
+| to_datetime    | datetime | Không    | Thời gian kết thúc, định dạng `YYYY-MM-DD HH:MM:SS`. Mặc định là mốc thời gian tối đa trong cơ sở dữ liệu.                        |
+| page           | int      | Không    | Số thứ tự của trang (≥ 0).  Mặc định là `0`.                             |
+| page_size      | int      | Không    | Số bản ghi trên mỗi trang. Giá trị cho phép: `10`, `50`, `100`. Mặc định là `10`.           |
+| text_keyword   | string   | Không    | Lọc tin nhắn có chứa từ khóa này (không phân biệt hoa thường).              |
+| phone_num      | string   | Không    | Lọc số điện thoại khớp với mẫu này (không phân biệt hoa thường). |
 
-| Name           | Type      | Required | Description                                                                 |
-|----------------|-----------|----------|-----------------------------------------------------------------------------|
-| from_datetime  | datetime  | No       | Start time in `YYYY-MM-DD HH:MM:SS` format.|
-| to_datetime    | datetime  | No       | End time in `YYYY-MM-DD HH:MM:SS` format.  |
-| page           | int       | No       | Page number to fetch (default is `0`). Must be ≥ 0.                         |
-| page_size      | int       | No       | Number of records per page. Allowed values: `10`, `50`, `100`.             |
-| text_keyword   | string    | No       | Filter messages that contain this keyword (case-insensitive).              |
-| phone_num      | string    | No       | Filter senders whose phone numbers match this pattern (case-insensitive).  |
-
-### Response Example
+### Ví dụ phản hồi {#vi-du-phan-hoi-get-content}
 
 ```json
 {
   "status_code": 200,
   "message": "Success",
-  "data": [...],
   "error": false,
   "error_message": "",
+  "data": [
+    {
+      "stt": 1,
+      "group_id": "group_073q_1755225954",
+      "frequency": 1,
+      "ts": "2025-08-14T11:03:27",
+      "agg_message": "D15",
+      "sdt_in": "58739E9926D3A2B7C1A029B3B1351938",
+      "messages": [
+        {
+          "text_sms": "D15",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "stt": 2,
+      "group_id": "group_0DJx_1755226161",
+      "frequency": 1,
+      "ts": "2025-08-14T11:03:27",
+      "agg_message": "ԀϨ̂ trả  bớt.   Rồi  cha mượn lại bữa  đóng  Ngân hàng.  Nay vợ  trả",
+      "sdt_in": "EF0F86331EC0891F137AB97191333E4E",
+      "messages": [
+        {
+          "text_sms": "ԀϨ̂ trả  bớt.   Rồi  cha mượn lại bữa  đóng  Ngân hàng.  Nay vợ  trả",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "stt": 3,
+      "group_id": "group_0DgB_1755226051",
+      "frequency": 1,
+      "ts": "2025-08-14T11:03:27",
+      "agg_message": "vậy nha, chúc anh và ny tương phùng và sớm lại có hỷ.",
+      "sdt_in": "1761C7B0777D388605E12DC6A2E263B6",
+      "messages": [
+        {
+          "text_sms": "vậy nha, chúc anh và ny tương phùng và sớm lại có hỷ.",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "stt": 4,
+      "group_id": "group_0G21_1755226590",
+      "frequency": 1,
+      "ts": "2025-08-14T11:03:27",
+      "agg_message": "Dạ, có gì con nhờ ông đó với ạ,",
+      "sdt_in": "EC1ACBE0AF94E90ADEB3A6C21BAE816B",
+      "messages": [
+        {
+          "text_sms": "Dạ, có gì con nhờ ông đó với ạ,",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "stt": 5,
+      "group_id": "group_0SXC_1755226198",
+      "frequency": 1,
+      "ts": "2025-08-14T11:03:27",
+      "agg_message": "có gì đâu a ai cũng có lúc khổ mà",
+      "sdt_in": "A1FB46E6022791D98424105D61F609FA",
+      "messages": [
+        {
+          "text_sms": "có gì đâu a ai cũng có lúc khổ mà",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "stt": 6,
+      "group_id": "group_0VuH_1755225948",
+      "frequency": 1,
+      "ts": "2025-08-14T11:03:27",
+      "agg_message": "Di e a dag o sao nè",
+      "sdt_in": "0BE31CBF8C51F328CEE3004E7E0D57B9",
+      "messages": [
+        {
+          "text_sms": "Di e a dag o sao nè",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "stt": 7,
+      "group_id": "group_0tGO_1755225931",
+      "frequency": 1,
+      "ts": "2025-08-14T11:03:27",
+      "agg_message": "Vâng.",
+      "sdt_in": "EF953B119E02C5B3E3DE87CA0F8A0D44",
+      "messages": [
+        {
+          "text_sms": "Vâng.",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "stt": 8,
+      "group_id": "group_0xfy_1755226045",
+      "frequency": 1,
+      "ts": "2025-08-14T11:03:27",
+      "agg_message": "Vd14912t 0911899663",
+      "sdt_in": "BEB241379DE340F36071F4C6F26B7268",
+      "messages": [
+        {
+          "text_sms": "Vd14912t 0911899663",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "stt": 9,
+      "group_id": "group_10Pt_1755226051",
+      "frequency": 1,
+      "ts": "2025-08-14T11:03:27",
+      "agg_message": "VNN G10 NAP50 SOV98837832",
+      "sdt_in": "AB7C4F1CE966368ED0FE70A1EAB1ED8C",
+      "messages": [
+        {
+          "text_sms": "VNN G10 NAP50 SOV98837832",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "stt": 10,
+      "group_id": "group_1Be3_1755225960",
+      "frequency": 1,
+      "ts": "2025-08-14T11:03:27",
+      "agg_message": "Ah hôm qua c nhận rồi ah. Thèn cu e kia nó đưa mà ko nói e",
+      "sdt_in": "EE38DC83AD7F018300EEC3FC803799B4",
+      "messages": [
+        {
+          "text_sms": "Ah hôm qua c nhận rồi ah. Thèn cu e kia nó đưa mà ko nói e",
+          "count": 1
+        }
+      ]
+    }
+  ],
   "page": 0,
   "limit": 10,
-  "total": 100
+  "total": 3441
 }
 ```
 
-### Response Fields
+### Các trường phản hồi{#cac-truong-phan-hoi-get-content}
 
-| Field           | Type                           | Description |
-|------------------|--------------------------------|-------------|
-| `status_code`    | `int`                          | HTTP status code (e.g. 200, 400, 404) |
-| `message`        | `str or null`                  | Response message |
-| `data`           | `list[SMSGroupedData] or null` | Main data result |
-| `error`          | `bool`                         | Whether an error occurred |
-| `error_message`  | `str or null`                  | Error description if any |
-| `page`           | `int`                          | Current page number |
-| `limit`          | `int`                          | Number of records per page |
-| `total`          | `int`                          | Total number of matched records |
+| Trường           | Kiểu                           | Mô tả |
+|------------------|--------------------------------|-------|
+| `status_code`    | `int`                          | Mã trạng thái HTTP (200, 400, 404,...). |
+| `message`        | `str`                | Thông báo phản hồi. |
+| `data`           | `list[SMSGroupedContent] hoặc null` | Kết quả dữ liệu chính. |
+| `error`          | `bool`                         | Có lỗi hay không. |
+| `error_message`  | `str hoặc null`                | Mô tả lỗi nếu có. |
+| `page`           | `int`                          | Trang hiện tại. |
+| `limit`          | `int`                          | Số bản ghi trên mỗi trang. |
+| `total`          | `int`                          | Tổng số bản ghi khớp. |
 
-### SMSGroupedData Format Example
+### Định dạng SMSGroupedContent {#dinh-dang-smsgroupedcontent}
 
 ```json
 {
   "stt": 1,
-  "sdt_in": "0123456789",
-  "frequency": 3,
-  "ts": "2022-09-06T17:26:20",
-  "message_groups": [
+  "group_id": "group_073q_1755225954",
+  "frequency": 1,
+  "ts": "2025-08-14T11:03:27",
+  "agg_message": "D15",
+  "sdt_in": "58739E9926D3A2B7C1A029B3B1351938",
+  "messages": [
     {
-      "group_id": "group_abc",
-      "messages": [
-        {
-          "text_sms": "Example content",
-          "count": 2
-        }
-      ]
+      "text_sms": "D15",
+      "count": 1
     }
   ]
 }
 ```
 
-| Field            | Type                     | Description |
-|------------------|--------------------------|-------------|
-| `stt`            | int                      | Row number |
-| `sdt_in`         | str                      | Phone number |
-| `frequency`      | int                      | Number of SMS messages |
-| `ts`             | string (ISO datetime)    | First message timestamp |
-| `message_groups` | list of grouped messages | Grouped by message content |
-|`group_id`        | str                      | ID of the group|
-|`message`         | str                      | The message in group `group_id`|
-|`count`           | int                      | Total number of message count|
-### Possible Errors
-
-- **400 Bad Request**
-  - `"Invalid time range: 'to_datetime' is earlier than 'from_datetime'."`
-  - `"Page X exceeds total pages (Y)"`
+| Trường           | Kiểu                     | Mô tả |
+|------------------|--------------------------|-------|
+| `stt`            | `int`                      | Số thứ tự. |
+| `group_id`       | `str`                      | ID của nhóm. |
+| `sdt_in`         | `str`                      | Số điện thoại đã gửi tin nhắn. |
+| `frequency`      | `int`                      | Số lượng tin nhắn mà 1 số điện thoại đã gửi trong nhóm `group_id`. |
+| `ts`             | `datetime`    | Thời điểm tin nhắn đầu tiên được gửi trong nhóm bởi số điện thoại `sdt_in`.|
+| `messages` | `list` | Danh sách các tin nhắn đã gửi trong nhóm của số điện thoại `sdt_in`. |
+| `text_sms`        | `str`                      | Nội dung tin nhắn. |
+| `count`          | `int`                      | Tần suất của mỗi `text_sms`. |
 
 ---
-## 📘 API 2: PUT /content/
 
-### Description
-This API is used to send client feedback, so that they can evaluate whether a phone number is spam or not based on the text message.
+## GET /content/export {#export-get-content}
+### Mô tả {#mo-ta-export-get-content}
+API này tiến hành lọc dựa trên thời gian (**giới hạn 1 giờ**), nội dung tin nhắn và số điện thoại. Sau đó tiến hành nhóm theo `group_id` và sau đó là `sdt_in` rồi xuất ra dưới dạng file csv để người dùng có thể download.
 
-If any message is marked as spam, then all the messages belong to the same group will be marked as spam
+### Tham số truy vấn {#tham-so-truy-van-export-get-content}
 
-### Query Parameters
-| Name           | Type      | Required | Description                                                                 |
-|----------------|-----------|----------|-----------------------------------------------------------------------------|
-| sdt_in  | str  | No       | The phone number client wants to give the feedback|
-| text_sms    | str  | No       | The message that phone number send |
-| feedback           | bool       | No       |  Feedback of client whether True(Spam) or False(Not Spam).          |
+| Tên            | Kiểu     | Yêu cầu | Mô tả                                                                      |
+|----------------|----------|----------|----------------------------------------------------------------------------|
+| from_datetime  | datetime | Không    | Thời gian bắt đầu, định dạng `YYYY-MM-DD HH:MM:SS`.                       |
+| to_datetime    | datetime | Không    | Thời gian kết thúc, định dạng `YYYY-MM-DD HH:MM:SS`.                      |
+| text_keyword   | string   | Không    | Lọc tin nhắn có chứa từ khóa này (không phân biệt hoa thường).              |
+| phone_num      | string   | Không    | Lọc số điện thoại khớp với mẫu này (không phân biệt hoa thường). |
+
+### Lưu ý
+- Khoảng thời gian giữa `to_datetime` và `from_datetime` phải nằm trong khoảng 1 giờ đồng hồ đổ lại, nếu không sẽ có thông báo lỗi được trả về.
+- Nếu thời gian không được cung cấp, hệ thống sẽ tự động lọc theo 1 giờ đồng hồ gần nhất.
+- Nếu `from_datetime` không được cung cấp thì `from_datetime` sẽ được tính bằng `to_datetime - 1h`.
+- Nếu `to_datetime` không được cung cấp thì `to_datetime` sẽ được tính bằng `from_datetime + 1h`. 
+
+### Ví dụ phản hồi {#vi-du-phan-hoi-export-get-content}
+Tệp csv chứa nội dung yêu cầu sẽ được tải về máy người dùng.
+
+---
+
+## PUT /content/ {#put-content}
+
+### Mô tả {#mo-ta-put-content}
+API này được sử dụng để gửi phản hồi từ người dùng, giúp họ đánh giá liệu một số điện thoại có phải là spam hay không dựa trên nội dung tin nhắn của từng số điện thoại trong từng nhóm.
 
 
-### Response Example
+### Tham số truy vấn {#tham-so-truy-van-put-content}
+
+| Tên            | Kiểu     | Bắt buộc | Mô tả                                                                      |
+|----------------|----------|----------|----------------------------------------------------------------------------|
+| feedback       | bool     | Có    | Phản hồi của người dùng: True (Spam) hoặc False (Không phải Spam).         |
+| group_id       | str     | Có    | ID của nhóm.         |
+| sdt_in         | str      | Có    | Số điện thoại mà người dùng muốn đánh giá.            |
+
+
+
+
+### Ví dụ phản hồi {#vi-du-phan-hoi-4}
 
 ```json
-"Message": "Updated {number} records",
+{
+  "status_code": 200,
+  "message": "Updated 4 records",
+  "error": false,
+  "error_message": null
+}
 ```
-{number} is the total number of records have been updated in the database.
 
+### Các trường phản hồi{#cac-truong-phan-hoi-put-content}
+
+| Trường           | Kiểu                           | Mô tả |
+|------------------|--------------------------------|-------|
+| `status_code`    | `int`                          | Mã trạng thái HTTP (ví dụ: 200, 400, 404). |
+| `message`        | `str`                | Thông báo số bản ghi được cập nhật thành công. |
+| `error`          | `bool`                         | Có lỗi hay không. |
+| `error_message`  | `str hoặc null`                | Mô tả lỗi nếu có. |
 
 ---
+---
+# Các API về frequency {#frequency}
+## GET /frequency/ {#get-frequency}
+### Mô tả {#mo-ta-get-frequency}
+API này tiến hành lọc các bản ghi dựa trên thời gian, nội dung tin nhắn và số điện thoại. Sau đó tiến hành nhóm theo `group_id`.
 
-## 📘 API 3: GET /frequency/
+### Tham số truy vấn {#tham-so-truy-van-get-frequency}
 
-### Description
-This API filters SMS messages by time, keyword, and phone number, and **returns only the frequency and first timestamp per phone number** (no message grouping).
+| Tên            | Kiểu     | Yêu cầu | Mô tả                                                                      |
+|----------------|----------|----------|----------------------------------------------------------------------------|
+| from_datetime  | datetime | Không    | Thời gian bắt đầu, định dạng `YYYY-MM-DD HH:MM:SS`. Mặc định là mốc thời gian tối thiểu trong cơ sở dữ liệu.                       |
+| to_datetime    | datetime | Không    | Thời gian kết thúc, định dạng `YYYY-MM-DD HH:MM:SS`. Mặc định là mốc thời gian tối đa trong cơ sở dữ liệu.                        |
+| page           | int      | Không    | Số thứ tự của trang (≥ 0).  Mặc định là `0`.                             |
+| page_size      | int      | Không    | Số bản ghi trên mỗi trang. Giá trị cho phép: `10`, `50`, `100`. Mặc định là `10`.           |
+| text_keyword   | string   | Không    | Lọc tin nhắn có chứa từ khóa này (không phân biệt hoa thường).              |
+| phone_num      | string   | Không    | Lọc số điện thoại khớp với mẫu này (không phân biệt hoa thường). |
 
-### Query Parameters
+ 
 
-Same as `/content/`:
-
-| Name            | Type     | Description |
-|-----------------|----------|-------------|
-| `from_datetime` | datetime | Start timestamp (`YYYY-MM-DD HH:MM:SS`) |
-| `to_datetime`   | datetime | End timestamp (`YYYY-MM-DD HH:MM:SS`) |
-| `page`          | int      | Page index (starting from 0) |
-| `page_size`     | int      | Records per page (10, 50, 100) |
-| `text_keyword`  | str      | Filter SMS content by keyword |
-| `phone_num`     | str      | Filter phone number pattern |
-
-### Response Example
+### Ví dụ phản hồi {#vi-du-phan-hoi-get-frequency}
 
 ```json
 {
   "status_code": 200,
   "message": "Success",
-  "data": [...],
   "error": false,
   "error_message": "",
-  "page": 0,
+  "data": [
+    {
+      "stt": 11,
+      "group_id": "group_wIoD_1755504016",
+      "frequency": 1,
+      "ts": "2025-08-27T11:30:48",
+      "agg_message": "ԀϘԄ,có ý kiến thẳng thắn a nói đúng hay sai,kg phải e ngại gì hết...a ",
+      "messages": [
+        {
+          "text_sms": "ԀϘԄ,có ý kiến thẳng thắn a nói đúng hay sai,kg phải e ngại gì hết...a ",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "stt": 12,
+      "group_id": "group_wK7L_1755518406",
+      "frequency": 1,
+      "ts": "2025-08-27T11:30:48",
+      "agg_message": "Ԁ̬ЃC nói con mụ bán thất đức vừa thôi, cái trái nhỏ non, E k nói điêu ",
+      "messages": [
+        {
+          "text_sms": "Ԁ̬ЃC nói con mụ bán thất đức vừa thôi, cái trái nhỏ non, E k nói điêu ",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "stt": 13,
+      "group_id": "group_wNLs_1755225954",
+      "frequency": 12,
+      "ts": "2025-08-27T11:30:12",
+      "agg_message": "DATAKM",
+      "messages": [
+        {
+          "text_sms": "DATAKM",
+          "count": 11
+        },
+        {
+          "text_sms": " DATAKM ",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "stt": 14,
+      "group_id": "group_wQqz_1755516009",
+      "frequency": 1,
+      "ts": "2025-08-27T11:30:18",
+      "agg_message": "từ nay k cần phải đau đầu lên kịch bản và diễn nữa đâu.",
+      "messages": [
+        {
+          "text_sms": "từ nay k cần phải đau đầu lên kịch bản và diễn nữa đâu.",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "stt": 15,
+      "group_id": "group_wRfq_1755226130",
+      "frequency": 1,
+      "ts": "2025-08-27T11:30:13",
+      "agg_message": "Chiều e xuống chị đưa ",
+      "messages": [
+        {
+          "text_sms": "Chiều e xuống chị đưa ",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "stt": 16,
+      "group_id": "group_wU4G_1755551409",
+      "frequency": 1,
+      "ts": "2025-08-27T11:30:38",
+      "agg_message": "A k ngi như za a nag ni cầu xin e mới chịu gap ",
+      "messages": [
+        {
+          "text_sms": "A k ngi như za a nag ni cầu xin e mới chịu gap ",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "stt": 17,
+      "group_id": "group_wX0G_1755587710",
+      "frequency": 1,
+      "ts": "2025-08-27T11:30:12",
+      "agg_message": "DCB:ZCCB2VVHU1SEA9QUIHBR9NVKQVOPQ12RL",
+      "messages": [
+        {
+          "text_sms": "DCB:ZCCB2VVHU1SEA9QUIHBR9NVKQVOPQ12RL",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "stt": 18,
+      "group_id": "group_wXES_1755514809",
+      "frequency": 1,
+      "ts": "2025-08-27T11:30:44",
+      "agg_message": "Ԁό́Chào chị. Em bên phòng khám Dr.Nguyễn. Đã tới lịch điều trị tiếp củ",
+      "messages": [
+        {
+          "text_sms": "Ԁό́Chào chị. Em bên phòng khám Dr.Nguyễn. Đã tới lịch điều trị tiếp củ",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "stt": 19,
+      "group_id": "group_wYmz_1755226170",
+      "frequency": 1,
+      "ts": "2025-08-27T11:25:48",
+      "agg_message": "Ԁϰ̂ lắm ck nhất nhớ vk lắm r vk tối về dt chửi ck cũng dk nửa tối 9h c",
+      "messages": [
+        {
+          "text_sms": "Ԁϰ̂ lắm ck nhất nhớ vk lắm r vk tối về dt chửi ck cũng dk nửa tối 9h c",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "stt": 20,
+      "group_id": "group_wbxl_1755504908",
+      "frequency": 2,
+      "ts": "2025-08-27T11:30:13",
+      "agg_message": "Ԁ̀Ȃ đá 23 một ngàn",
+      "messages": [
+        {
+          "text_sms": "Ԁ̀Ȃ đá 23 một ngàn",
+          "count": 2
+        }
+      ]
+    }
+  ],
+  "page": 1,
   "limit": 10,
-  "total": 100
+  "total": 750
 }
 ```
 
-### Response Fields
+### Các trường phản hồi{#cac-truong-phan-hoi-get-frequency}
 
-| Field           | Type                           | Description |
-|------------------|--------------------------------|-------------|
-| `status_code`    | `int`                          | HTTP status code (e.g. 200, 400, 404) |
-| `message`        | `str or null`                  | Response message |
-| `data`           | `list[SMSGroupedData] or null` | Main data result |
-| `error`          | `bool`                         | Whether an error occurred |
-| `error_message`  | `str or null`                  | Error description if any |
-| `page`           | `int`                          | Current page number |
-| `limit`          | `int`                          | Number of records per page |
-| `total`          | `int`                          | Total number of matched records |
+| Trường           | Kiểu                           | Mô tả |
+|------------------|--------------------------------|-------|
+| `status_code`    | `int`                          | Mã trạng thái HTTP (200, 400, 404,...). |
+| `message`        | `str`                | Thông báo phản hồi. |
+| `data`           | `list[SMSGroupedFrequency] hoặc null` | Kết quả dữ liệu chính. |
+| `error`          | `bool`                         | Có lỗi hay không. |
+| `error_message`  | `str hoặc null`                | Mô tả lỗi nếu có. |
+| `page`           | `int`                          | Trang hiện tại. |
+| `limit`          | `int`                          | Số bản ghi trên mỗi trang. |
+| `total`          | `int`                          | Tổng số bản ghi khớp. |
 
-### FrequencyData Format Example
+### Định dạng SMSGroupedFrequency {#dinh-dang-smsgroupedfrequency}
 
 ```json
 {
-  "stt": 1,
-  "sdt_in": "0123456789",
-  "frequency": 3,
-  "ts": "2022-09-06T17:26:20"
+  "stt": 20,
+  "group_id": "group_wbxl_1755504908",
+  "frequency": 2,
+  "ts": "2025-08-27T11:30:13",
+  "agg_message": "Ԁ̀Ȃ đá 23 một ngàn",
+  "messages": [
+    {
+      "text_sms": "Ԁ̀Ȃ đá 23 một ngàn",
+      "count": 2
+    }
+  ]
 }
 ```
 
-| Field        | Type                  | Description |
-|--------------|------------------------|-------------|
-| `stt`        | int                    | Row number |
-| `sdt_in`     | str                    | Phone number |
-| `frequency`  | int                    | Number of matched messages |
-| `ts_first`   | string (ISO datetime)  | Timestamp of first message |
+| Trường           | Kiểu                     | Mô tả |
+|------------------|--------------------------|-------|
+| `stt`            | `int`                      | Số thứ tự. |
+| `group_id`       | `str`                      | ID của nhóm. |
+| `frequency`      | `int`                      | Số lượng tin nhắn đã gửi trong nhóm `group_id`. |
+| `ts`             | `datetime`    | Thời điểm tin nhắn đầu tiên được gửi trong nhóm.|
+| `messages` | `list` | Danh sách các tin nhắn đã gửi trong nhóm. |
+| `text_sms`        | `str`                      | Nội dung tin nhắn. |
+| `count`          | `int`                      | Tần suất của mỗi `text_sms`. |
 
-### Possible Errors
+---
 
-- **400 Bad Request**
-  - `"Invalid time range: 'to_datetime' is earlier than 'from_datetime'."`
-  - `"Page X exceeds total pages (Y)"`
+## GET /frequency/export {#export-get-frequency}
+### Mô tả {#mo-ta-export-get-frequency}
+API này tiến hành lọc các bản ghi dựa trên thời gian (**giới hạn 1 giờ**), nội dung tin nhắn và số điện thoại. Sau đó tiến hành nhóm theo `group_id` rồi xuất ra dưới dạng file csv để người dùng có thể download.
 
-## 📘 API 4: PUT /frequency/
+### Tham số truy vấn {#tham-so-truy-van-export-get-frequency}
 
-### Description
-This API is used to send client feedback, so that they can evaluate whether a phone number is spam or not based on the frequency message.
+| Tên            | Kiểu     | Yêu cầu | Mô tả                                                                      |
+|----------------|----------|----------|----------------------------------------------------------------------------|
+| from_datetime  | datetime | Không    | Thời gian bắt đầu, định dạng `YYYY-MM-DD HH:MM:SS`.                       |
+| to_datetime    | datetime | Không    | Thời gian kết thúc, định dạng `YYYY-MM-DD HH:MM:SS`.                      |
+| text_keyword   | string   | Không    | Lọc tin nhắn có chứa từ khóa này (không phân biệt hoa thường).              |
+| phone_num      | string   | Không    | Lọc số điện thoại khớp với mẫu này (không phân biệt hoa thường). |
 
-If any record is marked as spam, then all the records belong to that phone number will be marked as spam
+### Lưu ý
+- Khoảng thời gian giữa `to_datetime` và `from_datetime` phải nằm trong khoảng 1 giờ đồng hồ đổ lại, nếu không sẽ có thông báo lỗi được trả về.
+- Nếu thời gian không được cung cấp sẽ tự động lấy 1 giờ đồng hồ gần nhất.
+- Nếu `from_datetime` không được cung cấp thi `from_datetime` sẽ được tính bằng `to_datetime - 1h`. 
+- Nếu `to_datetime` không được cung cấp thi `to_datetime` sẽ được tính bằng `from_datetime + 1h`. 
 
-### Query Parameters
-| Name           | Type      | Required | Description                                                                 |
-|----------------|-----------|----------|-----------------------------------------------------------------------------|
-| sdt_in  | str  | No       | The phone number client wants to give the feedback|
-| feedback           | bool       | No       |  Feedback of client whether True(Spam) or False(Not Spam).          |
+### Ví dụ phản hồi {#vi-du-phan-hoi-export-get-frequency}
+Tệp csv chứa nội dung yêu cầu sẽ được tải về máy người dùng.
+
+---
+
+## PUT /frequency/ {#put-frequency}
+
+### Mô tả {#mo-ta-put-frequency}
+API này được sử dụng để gửi phản hồi từ người dùng, giúp họ đánh giá liệu một nhóm có phải là spam hay không dựa trên nội dung tin nhắn được gửi trong nhóm
+
+### Tham số truy vấn {#tham-so-truy-van-put-frequency}
+
+| Tên            | Kiểu     | Bắt buộc | Mô tả                                                                      |
+|----------------|----------|----------|----------------------------------------------------------------------------|
+| feedback       | bool     | Có    | Phản hồi của người dùng: True (Spam) hoặc False (Không phải Spam).         |
+| group_id       | str     | Có    | ID của nhóm.         |           |
 
 
-### Response Example
+
+
+### Ví dụ phản hồi {#vi-du-phan-hoi-put-frequency}
 
 ```json
-"Message": "Updated {number} records",
+{
+  "status_code": 200,
+  "message": "Updated 4 records",
+  "error": false,
+  "error_message": null
+}
 ```
-{number} is the total number of records have been updated in the database.
 
+### Các trường phản hồi{#cac-truong-phan-hoi-put-frequency}
 
+| Trường           | Kiểu                           | Mô tả |
+|------------------|--------------------------------|-------|
+| `status_code`    | `int`                          | Mã trạng thái HTTP (ví dụ: 200, 400, 404). |
+| `message`        | `str`                | Thông báo số bản ghi được cập nhật thành công. |
+| `error`          | `bool`                         | Có lỗi hay không. |
+| `error_message`  | `str hoặc null`                | Mô tả lỗi nếu có. |

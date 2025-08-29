@@ -50,7 +50,7 @@ class BaseFeedback(BaseModel):
 
 
 class FrequencyFeedback(BaseFeedback):
-    text_sms: str
+    pass
 
 class ContentFeedback(FrequencyFeedback):
     sdt_in: str
