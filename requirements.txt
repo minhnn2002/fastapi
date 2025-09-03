@@ -19,7 +19,7 @@ httptools==0.6.4
 httpx==0.28.1
 idna==3.10
 ipykernel==6.30.1
-ipython==9.4.0
+ipython
 ipython_pygments_lexers==1.1.1
 jedi==0.19.2
 Jinja2==3.1.6
@@ -33,7 +33,7 @@ mysql==0.0.3
 mysql-connector-python==9.4.0
 mysqlclient==2.2.7
 nest-asyncio==1.6.0
-numpy==2.3.2
+numpy
 packaging==25.0
 pandas==2.3.2
 parso==0.8.5
