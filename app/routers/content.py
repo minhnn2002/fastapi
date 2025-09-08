@@ -1,12 +1,13 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, status, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from sqlmodel import Session, select, func, update, and_
+from sqlmodel import Session, select, func, and_, update
 from app.db import get_session
 from app.models import SMS_Data
 from app.schemas import *
+from app.utils import *
 from app.config import settings
-from datetime import datetime, timedelta
+from datetime import datetime
 from collections import defaultdict
 import csv
 import io
@@ -16,8 +17,6 @@ router = APIRouter(
     prefix="/content",
     tags=['Content']
 )
-
-
 @router.get("/")
 async def get_spam_base_on_content(
     session: Annotated[Session, Depends(get_session)],
@@ -28,51 +27,19 @@ async def get_spam_base_on_content(
     text_keyword: Annotated[str, Query(description="Filter messages that contain this keyword (case insensitive)")] = None,
     phone_num: Annotated[str, Query(description="Filter phone number that contain this pattern (case insensitive)")] = None
 ) -> BasePaginatedResponseContent:
-    DEFAULT_FROM_DATETIME = datetime(1900, 1, 1)  
-    DEFAULT_TO_DATETIME = datetime.now()
+    
+    # --- Time validation ---
+    from_datetime, to_datetime = validate_time_range(session, from_datetime, to_datetime)
 
-    # Default range handling
-    from_datetime = from_datetime or DEFAULT_FROM_DATETIME
-    to_datetime = to_datetime or DEFAULT_TO_DATETIME
-
-    # Only validate if user explicitly set something
-    if to_datetime < from_datetime:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid time range: 'to_datetime' is earlier than 'from_datetime'."
-        )
-
-    # Build base filters
+    # --- Base filters ---
     filters = [SMS_Data.ts.between(from_datetime, to_datetime)]
     if text_keyword:
         filters.append(SMS_Data.text_sms.ilike(f"%{text_keyword}%"))
     if phone_num:
         filters.append(SMS_Data.sdt_in.ilike(f"%{phone_num}%"))
 
-    # Count total records for pagination
-    total = session.scalar(
-        select(func.count()).select_from(
-            select(SMS_Data.group_id, SMS_Data.sdt_in)
-            .distinct()
-            .where(*filters)
-            .subquery()
-        )
-    )
-
-    total_pages = (total + page_size - 1) // page_size
-    if page >= total_pages:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "message": f"Page {page} exceeds total pages ({total_pages})",
-                "page": page,
-                "limit": page_size,
-                "total": total
-            }
-        )
-
-    # Subquery: get first_ts per group
-    first_ts_subq = (
+    # --- Base grouped subquery (no offset/limit here) ---
+    base_grouped_subq = (
         select(
             SMS_Data.group_id,
             SMS_Data.sdt_in,
@@ -81,50 +48,79 @@ async def get_spam_base_on_content(
         )
         .where(*filters)
         .group_by(SMS_Data.group_id, SMS_Data.sdt_in)
-        .order_by(func.min(SMS_Data.ts))
-        .offset(page * page_size)
-        .limit(page_size)
+        .having(func.count() >= 20)
         .subquery()
     )
 
-    # Join back to get the agg_message (first message per group)
-    grouped_stmt = (
-        select(
-            first_ts_subq.c.group_id,
-            first_ts_subq.c.sdt_in,
-            first_ts_subq.c.first_ts,
-            first_ts_subq.c.frequency,
-            func.min(SMS_Data.text_sms).label("agg_message")
-        )
-        .join(
-            first_ts_subq,
-            and_(
-                SMS_Data.group_id == first_ts_subq.c.group_id,
-                SMS_Data.sdt_in == first_ts_subq.c.sdt_in,
-                SMS_Data.ts == first_ts_subq.c.first_ts
-            )
-        )
-        .group_by(first_ts_subq.c.group_id, first_ts_subq.c.sdt_in, first_ts_subq.c.first_ts, first_ts_subq.c.frequency)
-        .order_by(first_ts_subq.c.first_ts)
-    )
-    grouped_records = session.exec(grouped_stmt).all()
+    # --- Count total records ---
+    total_records = session.exec(
+        select(func.count()).select_from(base_grouped_subq)
+    ).one()
+    total_pages = (total_records + page_size - 1) // page_size
 
-    if not grouped_records:
+    if total_records == 0:
         return BasePaginatedResponseContent(
             status_code=200,
-            message="Success",
+            message="No data found",
             data=[],
             error=False,
             error_message="",
             page=page,
             limit=page_size,
-            total=total_pages
+            total=0
         )
 
-    # Get all messages for these groups in one query
-    group_ids = {r.group_id for r in grouped_records}
-    phone_numbers = {r.sdt_in for r in grouped_records}
+    if page >= total_pages:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": f"Page {page} exceeds total pages ({total_pages})",
+                "page": page,
+                "limit": page_size,
+                "total": total_records
+            }
+        )
 
+    # --- Paginated subquery ---
+    paginated_subq = (
+        select(
+            base_grouped_subq.c.group_id,
+            base_grouped_subq.c.sdt_in,
+            base_grouped_subq.c.first_ts,
+            base_grouped_subq.c.frequency,
+        )
+        .order_by(base_grouped_subq.c.first_ts)
+        .offset(page * page_size)
+        .limit(page_size)
+        .subquery()
+    )
+
+    # --- Join back to get agg_message ---
+    grouped_stmt = (
+        select(
+            paginated_subq.c.group_id,
+            paginated_subq.c.sdt_in,
+            paginated_subq.c.first_ts,
+            paginated_subq.c.frequency,
+            SMS_Data.text_sms.label("agg_message")
+        )
+        .join(
+            SMS_Data,
+            and_(
+                SMS_Data.group_id == paginated_subq.c.group_id,
+                SMS_Data.sdt_in == paginated_subq.c.sdt_in,
+                SMS_Data.ts == paginated_subq.c.first_ts
+            )
+        )
+        .order_by(paginated_subq.c.first_ts)
+    )
+    grouped_records = session.exec(grouped_stmt).all()
+
+    # --- Collect IDs for second query ---
+    group_ids = [r.group_id for r in grouped_records]
+    phone_numbers = [r.sdt_in for r in grouped_records]
+
+    # --- Second query: all messages for these groups ---
     msg_stmt = (
         select(
             SMS_Data.group_id,
@@ -135,20 +131,20 @@ async def get_spam_base_on_content(
         .where(
             SMS_Data.group_id.in_(group_ids),
             SMS_Data.sdt_in.in_(phone_numbers),
-            *filters
+            SMS_Data.ts.between(from_datetime, to_datetime)  # only time filter
         )
         .group_by(SMS_Data.group_id, SMS_Data.sdt_in, SMS_Data.text_sms)
     )
     all_messages = session.exec(msg_stmt).all()
 
-    # Map messages
+    # --- Map messages ---
     messages_dict = defaultdict(list)
     for m in all_messages:
         messages_dict[(m.group_id, m.sdt_in)].append(
             MessageCount(text_sms=m.text_sms, count=m.count)
         )
 
-    # Build result
+    # --- Build result ---
     start_index = page * page_size + 1
     result = [
         SMSGroupedContent(
@@ -156,7 +152,7 @@ async def get_spam_base_on_content(
             group_id=r.group_id,
             sdt_in=r.sdt_in,
             frequency=r.frequency,
-            ts=r.first_ts.isoformat(),
+            ts=r.first_ts,
             agg_message=r.agg_message,
             messages=messages_dict.get((r.group_id, r.sdt_in), [])
         )
@@ -171,8 +167,10 @@ async def get_spam_base_on_content(
         error_message="",
         page=page,
         limit=page_size,
-        total=total_pages
+        total=total_records
     )
+
+
 
 @router.get("/export")
 async def export_content_data(
@@ -183,25 +181,7 @@ async def export_content_data(
     phone_num: Annotated[str, Query(description="Filter phone number that contain this pattern (case insensitive)")] = None
 ):
     # Handle time range 
-    if from_datetime is None and to_datetime is None: 
-        to_datetime = session.exec(select(func.max(SMS_Data.ts))).one()
-        from_datetime = to_datetime - timedelta(hours=1)
-    else:
-        if from_datetime is None:
-            from_datetime = to_datetime - timedelta(hours=1)
-        if to_datetime is None:
-            to_datetime = from_datetime + timedelta(hours=1)
-
-    if to_datetime < from_datetime:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="'to_datetime' cannot be earlier than 'from_datetime'."
-        )
-    if to_datetime - from_datetime > timedelta(hours=1):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Time range cannot exceed 1 hour."
-        )
+    from_datetime, to_datetime = validate_time_range(session, from_datetime, to_datetime)
 
     # Create all the filter needed
     filters = [SMS_Data.ts.between(from_datetime, to_datetime)]
@@ -270,10 +250,8 @@ async def export_content_data(
         headers={"Content-Disposition": "attachment; filename=content_export.csv"}
     )
 
-
-
 @router.put("/")
-async def feedback_base_on_content(
+def feedback_base_on_content(
     session: Annotated[Session, Depends(get_session)],
     user_feedback: ContentFeedback
 ):
@@ -302,9 +280,3 @@ async def feedback_base_on_content(
         error = False,
         error_message = None
     ) 
-
-
-
-
-
-

@@ -4,7 +4,6 @@ from app.routers import frequency
 from fastapi.exceptions import HTTPException
 from fastapi.requests import Request
 from fastapi.responses import JSONResponse
-
 app = FastAPI()
 
 @app.exception_handler(HTTPException)
@@ -37,7 +36,6 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 app.include_router(content.router)
 app.include_router(frequency.router)
-
 
 @app.get("/")
 def root():

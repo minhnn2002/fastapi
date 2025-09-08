@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 
 class MessageCount(BaseModel):
-    text_sms: str
+    text_sms: str|None
     count: int
 
 
@@ -11,7 +11,7 @@ class BaseDataFrequency(BaseModel):
     group_id: str
     frequency: int
     ts: datetime
-    agg_message: str
+    agg_message: str|None
 
 class BaseDataContent(BaseDataFrequency):
     sdt_in: str
@@ -45,7 +45,7 @@ class BasePaginatedResponseFrequency(BaseResponse):
 
 
 class BaseFeedback(BaseModel):
-    feedback: bool|None = None
+    feedback: bool
     group_id: str
 
 
