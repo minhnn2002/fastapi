@@ -37,172 +37,101 @@
 # Các API về content {#content}
 ## GET /content/ {#get-content}
 ### Mô tả {#mo-ta-get-content}
-API này tiến hành lọc dựa trên thời gian, nội dung tin nhắn và số điện thoại. Sau đó tiến hành nhóm theo `group_id` và sau đó là `sdt_in`.
+API này tiến hành lọc dựa trên thời gian (**giới hạn 1 giờ**), nội dung tin nhắn và số điện thoại. Sau đó tiến hành nhóm theo `group_id` và `sdt_in`, sau đó tính toán tần suất nhắn tin. Chỉ những (`group_id`, `sdt_in`) có **tần suất lớn hơn 20(SMS/h)** mới được hiển thị.
 
 ### Tham số truy vấn {#tham-so-truy-van-get-content}
 
 | Tên            | Kiểu     | Yêu cầu | Mô tả                                                                      |
 |----------------|----------|----------|----------------------------------------------------------------------------|
-| from_datetime  | datetime | Không    | Thời gian bắt đầu, định dạng `YYYY-MM-DD HH:MM:SS`. Mặc định là mốc thời gian tối thiểu trong cơ sở dữ liệu.                       |
-| to_datetime    | datetime | Không    | Thời gian kết thúc, định dạng `YYYY-MM-DD HH:MM:SS`. Mặc định là mốc thời gian tối đa trong cơ sở dữ liệu.                        |
+| from_datetime  | datetime | Không    | Thời gian bắt đầu, định dạng ISO format.                       |
+| to_datetime    | datetime | Không    | Thời gian kết thúc, định dạng ISO format.          |
 | page           | int      | Không    | Số thứ tự của trang (≥ 0).  Mặc định là `0`.                             |
 | page_size      | int      | Không    | Số bản ghi trên mỗi trang. Giá trị cho phép: `10`, `50`, `100`. Mặc định là `10`.           |
 | text_keyword   | string   | Không    | Lọc tin nhắn có chứa từ khóa này (không phân biệt hoa thường).              |
 | phone_num      | string   | Không    | Lọc số điện thoại khớp với mẫu này (không phân biệt hoa thường). |
 
+### Lưu ý
+- Khoảng thời gian giữa `to_datetime` và `from_datetime` phải nằm trong khoảng 1 giờ đồng hồ đổ lại, nếu không sẽ có thông báo lỗi được trả về.
+- Nếu thời gian không được cung cấp, hệ thống sẽ tự động lọc theo 1 giờ đồng hồ gần nhất.
+- Nếu `from_datetime` không được cung cấp thì `from_datetime` sẽ được tính bằng `to_datetime - 1h`.
+- Nếu `to_datetime` không được cung cấp thì `to_datetime` sẽ được tính bằng `from_datetime + 1h`. 
+
 ### Ví dụ phản hồi {#vi-du-phan-hoi-get-content}
 
 ```json
 {
-  "status_code": 200,
-  "message": "Success",
-  "error": false,
-  "error_message": "",
-  "data": [
-    {
-      "stt": 1,
-      "group_id": "group_073q_1755225954",
-      "frequency": 1,
-      "ts": "2025-08-14T11:03:27",
-      "agg_message": "D15",
-      "sdt_in": "58739E9926D3A2B7C1A029B3B1351938",
-      "messages": [
+    "status_code": 200,
+    "message": "Success",
+    "error": false,
+    "error_message": "",
+    "data": [
         {
-          "text_sms": "D15",
-          "count": 1
-        }
-      ]
-    },
-    {
-      "stt": 2,
-      "group_id": "group_0DJx_1755226161",
-      "frequency": 1,
-      "ts": "2025-08-14T11:03:27",
-      "agg_message": "ԀϨ̂ trả  bớt.   Rồi  cha mượn lại bữa  đóng  Ngân hàng.  Nay vợ  trả",
-      "sdt_in": "EF0F86331EC0891F137AB97191333E4E",
-      "messages": [
+            "stt": 1,
+            "group_id": "group_n0U2_1755225977",
+            "frequency": 32,
+            "ts": "2025-09-04T04:20:46",
+            "agg_message": "2GOE Çhuc mung quy höi vien da nhån duoc c;;de tri ån 899k truy cåp: bit.ly/3QuRHJM T-nghiem Tai_xiu, S()lt,sieu_NT,baÇarät,tlmn.. x3 nap_lån dåu, nap rut 1:1",
+            "sdt_in": "9212DEF244091507FB332AAF6E2717E6",
+            "messages": [
+                {
+                    "text_sms": "Z56D Çhuc mung quy höi vien da nhån duoc c;;de tri ån 899k truy cåp: bit.ly/3QuRHJM T-nghiem Tai_xiu, S()lt,sieu_NT,baÇarät,tlmn.. x3 nap_lån dåu, nap rut 1:1",
+                    "count": 1
+                },
+                {
+                    "text_sms": "B92A Çhuc mung quy höi vien da nhån duoc c;;de tri ån 899k truy cåp: bit.ly/3QuRHJM T-nghiem Tai_xiu, S()lt,sieu_NT,baÇarät,tlmn.. x3 nap_lån dåu, nap rut 1:1",
+                    "count": 1
+                },
+                {
+                    "text_sms": "IR9I Çhuc mung quy höi vien da nhån duoc c;;de tri ån 899k truy cåp: bit.ly/3QuRHJM T-nghiem Tai_xiu, S()lt,sieu_NT,baÇarät,tlmn.. x3 nap_lån dåu, nap rut 1:1",
+                    "count": 1
+                },
+                {
+                    "text_sms": "W5X0 Çhuc mung quy höi vien da nhån duoc c;;de tri ån 899k truy cåp: bit.ly/3QuRHJM T-nghiem Tai_xiu, S()lt,sieu_NT,baÇarät,tlmn.. x3 nap_lån dåu, nap rut 1:1",
+                    "count": 1
+                },
+                {
+                    "text_sms": "DHLC Çhuc mung quy höi vien da nhån duoc c;;de tri ån 899k truy cåp: bit.ly/3QuRHJM T-nghiem Tai_xiu, S()lt,sieu_NT,baÇarät,tlmn.. x3 nap_lån dåu, nap rut 1:1",
+                    "count": 1
+                },
+                {
+                    "text_sms": "OFIM Çhuc mung quy höi vien da nhån duoc c;;de tri ån 899k truy cåp: bit.ly/3QuRHJM T-nghiem Tai_xiu, S()lt,sieu_NT,baÇarät,tlmn.. x3 nap_lån dåu, nap rut 1:1",
+                    "count": 1
+                },
+                ...
+            ]
+        },
         {
-          "text_sms": "ԀϨ̂ trả  bớt.   Rồi  cha mượn lại bữa  đóng  Ngân hàng.  Nay vợ  trả",
-          "count": 1
-        }
-      ]
-    },
-    {
-      "stt": 3,
-      "group_id": "group_0DgB_1755226051",
-      "frequency": 1,
-      "ts": "2025-08-14T11:03:27",
-      "agg_message": "vậy nha, chúc anh và ny tương phùng và sớm lại có hỷ.",
-      "sdt_in": "1761C7B0777D388605E12DC6A2E263B6",
-      "messages": [
-        {
-          "text_sms": "vậy nha, chúc anh và ny tương phùng và sớm lại có hỷ.",
-          "count": 1
-        }
-      ]
-    },
-    {
-      "stt": 4,
-      "group_id": "group_0G21_1755226590",
-      "frequency": 1,
-      "ts": "2025-08-14T11:03:27",
-      "agg_message": "Dạ, có gì con nhờ ông đó với ạ,",
-      "sdt_in": "EC1ACBE0AF94E90ADEB3A6C21BAE816B",
-      "messages": [
-        {
-          "text_sms": "Dạ, có gì con nhờ ông đó với ạ,",
-          "count": 1
-        }
-      ]
-    },
-    {
-      "stt": 5,
-      "group_id": "group_0SXC_1755226198",
-      "frequency": 1,
-      "ts": "2025-08-14T11:03:27",
-      "agg_message": "có gì đâu a ai cũng có lúc khổ mà",
-      "sdt_in": "A1FB46E6022791D98424105D61F609FA",
-      "messages": [
-        {
-          "text_sms": "có gì đâu a ai cũng có lúc khổ mà",
-          "count": 1
-        }
-      ]
-    },
-    {
-      "stt": 6,
-      "group_id": "group_0VuH_1755225948",
-      "frequency": 1,
-      "ts": "2025-08-14T11:03:27",
-      "agg_message": "Di e a dag o sao nè",
-      "sdt_in": "0BE31CBF8C51F328CEE3004E7E0D57B9",
-      "messages": [
-        {
-          "text_sms": "Di e a dag o sao nè",
-          "count": 1
-        }
-      ]
-    },
-    {
-      "stt": 7,
-      "group_id": "group_0tGO_1755225931",
-      "frequency": 1,
-      "ts": "2025-08-14T11:03:27",
-      "agg_message": "Vâng.",
-      "sdt_in": "EF953B119E02C5B3E3DE87CA0F8A0D44",
-      "messages": [
-        {
-          "text_sms": "Vâng.",
-          "count": 1
-        }
-      ]
-    },
-    {
-      "stt": 8,
-      "group_id": "group_0xfy_1755226045",
-      "frequency": 1,
-      "ts": "2025-08-14T11:03:27",
-      "agg_message": "Vd14912t 0911899663",
-      "sdt_in": "BEB241379DE340F36071F4C6F26B7268",
-      "messages": [
-        {
-          "text_sms": "Vd14912t 0911899663",
-          "count": 1
-        }
-      ]
-    },
-    {
-      "stt": 9,
-      "group_id": "group_10Pt_1755226051",
-      "frequency": 1,
-      "ts": "2025-08-14T11:03:27",
-      "agg_message": "VNN G10 NAP50 SOV98837832",
-      "sdt_in": "AB7C4F1CE966368ED0FE70A1EAB1ED8C",
-      "messages": [
-        {
-          "text_sms": "VNN G10 NAP50 SOV98837832",
-          "count": 1
-        }
-      ]
-    },
-    {
-      "stt": 10,
-      "group_id": "group_1Be3_1755225960",
-      "frequency": 1,
-      "ts": "2025-08-14T11:03:27",
-      "agg_message": "Ah hôm qua c nhận rồi ah. Thèn cu e kia nó đưa mà ko nói e",
-      "sdt_in": "EE38DC83AD7F018300EEC3FC803799B4",
-      "messages": [
-        {
-          "text_sms": "Ah hôm qua c nhận rồi ah. Thèn cu e kia nó đưa mà ko nói e",
-          "count": 1
-        }
-      ]
-    }
-  ],
-  "page": 0,
-  "limit": 10,
-  "total": 3441
+            "stt": 2,
+            "group_id": "group_mY5T_1755226210",
+            "frequency": 20,
+            "ts": "2025-09-04T04:20:46",
+            "agg_message": "99Vin LongSG hotline:0362.777.777. GDMuabanMomo/atm100=120k code ( LSG08M09A1167 ) NhanQuatai http://irjrwe.site/r/21V2gKZO9t ",
+            "sdt_in": "64B1FB8FB33E2183479027EBF2632363",
+            "messages": [
+                {
+                    "text_sms": "99Vin LongSG hotline:0362.777.777. GDMuabanMomo/atm100=120k code ( LSG08M09A2957 ) NhanQuatai http://irjrwe.site/r/21V2gKZO9t ",
+                    "count": 1
+                },
+                {
+                    "text_sms": "99Vin LongSG hotline:0362.777.777. GDMuabanMomo/atm100=120k code ( LSG08M09A1841 ) NhanQuatai http://irjrwe.site/r/21V2gKZO9t ",
+                    "count": 1
+                },
+                {
+                    "text_sms": "99Vin LongSG hotline:0362.777.777. GDMuabanMomo/atm100=120k code ( LSG08M09A344 ) NhanQuatai http://irjrwe.site/r/21V2gKZO9t ",
+                    "count": 1
+                },
+                {
+                    "text_sms": "99Vin LongSG hotline:0362.777.777. GDMuabanMomo/atm100=120k code ( LSG08M09A1901 ) NhanQuatai http://irjrwe.site/r/21V2gKZO9t ",
+                    "count": 1
+                },
+                ...
+            ]
+        },
+        ...
+    ],
+    "page": 0,
+    "limit": 10,
+    "total": 3062
 }
 ```
 
@@ -222,20 +151,34 @@ API này tiến hành lọc dựa trên thời gian, nội dung tin nhắn và s
 ### Định dạng SMSGroupedContent {#dinh-dang-smsgroupedcontent}
 
 ```json
-{
-  "stt": 1,
-  "group_id": "group_073q_1755225954",
-  "frequency": 1,
-  "ts": "2025-08-14T11:03:27",
-  "agg_message": "D15",
-  "sdt_in": "58739E9926D3A2B7C1A029B3B1351938",
-  "messages": [
+"stt": 2,
+"group_id": "group_mY5T_1755226210",
+"frequency": 20,
+"ts": "2025-09-04T04:20:46",
+"agg_message": "99Vin LongSG hotline:0362.777.777. GDMuabanMomo/atm100=120k code ( LSG08M09A1167 ) NhanQuatai http://irjrwe.site/r/21V2gKZO9t ",
+"sdt_in": "64B1FB8FB33E2183479027EBF2632363",
+"messages": [
     {
-      "text_sms": "D15",
-      "count": 1
-    }
-  ]
-}
+        "text_sms": "99Vin LongSG hotline:0362.777.777. GDMuabanMomo/atm100=120k code ( LSG08M09A2957 ) NhanQuatai http://irjrwe.site/r/21V2gKZO9t ",
+        "count": 1
+    },
+    {
+        "text_sms": "99Vin LongSG hotline:0362.777.777. GDMuabanMomo/atm100=120k code ( LSG08M09A1841 ) NhanQuatai http://irjrwe.site/r/21V2gKZO9t ",
+        "count": 1
+    },
+    {
+        "text_sms": "99Vin LongSG hotline:0362.777.777. GDMuabanMomo/atm100=120k code ( LSG08M09A1197 ) NhanQuatai http://irjrwe.site/r/21V2gKZO9t ",
+        "count": 1
+    },
+    {
+        "text_sms": "99Vin LongSG hotline:0362.777.777. GDMuabanMomo/atm100=120k code ( LSG08M09A1901 ) NhanQuatai http://irjrwe.site/r/21V2gKZO9t ",
+        "count": 1
+    },
+    {
+        "text_sms": "99Vin LongSG hotline:0362.777.777. GDMuabanMomo/atm100=120k code ( LSG08M09A135 ) NhanQuatai http://irjrwe.site/r/21V2gKZO9t ",
+        "count": 1
+    },
+    ...
 ```
 
 | Trường           | Kiểu                     | Mô tả |
@@ -245,6 +188,7 @@ API này tiến hành lọc dựa trên thời gian, nội dung tin nhắn và s
 | `sdt_in`         | `str`                      | Số điện thoại đã gửi tin nhắn. |
 | `frequency`      | `int`                      | Số lượng tin nhắn mà 1 số điện thoại đã gửi trong nhóm `group_id`. |
 | `ts`             | `datetime`    | Thời điểm tin nhắn đầu tiên được gửi trong nhóm bởi số điện thoại `sdt_in`.|
+| `agg_message`             | `str`    | Tin nhắn tổng hợp.|
 | `messages` | `list` | Danh sách các tin nhắn đã gửi trong nhóm của số điện thoại `sdt_in`. |
 | `text_sms`        | `str`                      | Nội dung tin nhắn. |
 | `count`          | `int`                      | Tần suất của mỗi `text_sms`. |
@@ -253,14 +197,13 @@ API này tiến hành lọc dựa trên thời gian, nội dung tin nhắn và s
 
 ## GET /content/export {#export-get-content}
 ### Mô tả {#mo-ta-export-get-content}
-API này tiến hành lọc dựa trên thời gian (**giới hạn 1 giờ**), nội dung tin nhắn và số điện thoại. Sau đó tiến hành nhóm theo `group_id` và sau đó là `sdt_in` rồi xuất ra dưới dạng file csv để người dùng có thể download.
-
+API này tiến hành lọc dựa trên thời gian (**giới hạn 1 giờ**), nội dung tin nhắn và số điện thoại. Sau đó tiến hành nhóm theo `group_id` và `sdt_in`, sau đó tính toán tần suất nhắn tin. Chỉ những (`group_id`, `sdt_in`) có **tần suất lớn hơn 20(SMS/h)** mới được giữ lại và xuất ra dưới dạng file csv để người dùng có thể download.
 ### Tham số truy vấn {#tham-so-truy-van-export-get-content}
 
 | Tên            | Kiểu     | Yêu cầu | Mô tả                                                                      |
 |----------------|----------|----------|----------------------------------------------------------------------------|
-| from_datetime  | datetime | Không    | Thời gian bắt đầu, định dạng `YYYY-MM-DD HH:MM:SS`.                       |
-| to_datetime    | datetime | Không    | Thời gian kết thúc, định dạng `YYYY-MM-DD HH:MM:SS`.                      |
+| from_datetime  | datetime | Không    | Thời gian bắt đầu, định dạng ISO format.                       |
+| to_datetime    | datetime | Không    | Thời gian kết thúc, định dạng ISO format.                      |
 | text_keyword   | string   | Không    | Lọc tin nhắn có chứa từ khóa này (không phân biệt hoa thường).              |
 | phone_num      | string   | Không    | Lọc số điện thoại khớp với mẫu này (không phân biệt hoa thường). |
 
@@ -278,7 +221,7 @@ Tệp csv chứa nội dung yêu cầu sẽ được tải về máy người d�
 ## PUT /content/ {#put-content}
 
 ### Mô tả {#mo-ta-put-content}
-API này được sử dụng để gửi phản hồi từ người dùng, giúp họ đánh giá liệu một số điện thoại có phải là spam hay không dựa trên nội dung tin nhắn của từng số điện thoại trong từng nhóm.
+API này được sử dụng để gửi phản hồi từ người dùng. Dựa trên tần suất nhắn tin và nội dung nhắn tin của (`group_id`, `sdt_in`), người dùng sẽ đánh giá xem (`group_id`, `sdt_in`) có phải spam hay không.
 
 
 ### Tham số truy vấn {#tham-so-truy-van-put-content}
@@ -317,18 +260,18 @@ API này được sử dụng để gửi phản hồi từ người dùng, giú
 # Các API về frequency {#frequency}
 ## GET /frequency/ {#get-frequency}
 ### Mô tả {#mo-ta-get-frequency}
-API này tiến hành lọc các bản ghi dựa trên thời gian, nội dung tin nhắn và số điện thoại. Sau đó tiến hành nhóm theo `group_id`.
+API này tiến hành lọc dựa trên thời gian (**giới hạn 1 giờ**) và nội dung tin nhắn. Sau đó tiến hành nhóm theo `group_id`, sau đó tính toán tần suất nhắn tin. Chỉ những `group_id` có **tần suất lớn hơn 20(SMS/h)** mới được hiển thị.
 
 ### Tham số truy vấn {#tham-so-truy-van-get-frequency}
 
 | Tên            | Kiểu     | Yêu cầu | Mô tả                                                                      |
 |----------------|----------|----------|----------------------------------------------------------------------------|
-| from_datetime  | datetime | Không    | Thời gian bắt đầu, định dạng `YYYY-MM-DD HH:MM:SS`. Mặc định là mốc thời gian tối thiểu trong cơ sở dữ liệu.                       |
-| to_datetime    | datetime | Không    | Thời gian kết thúc, định dạng `YYYY-MM-DD HH:MM:SS`. Mặc định là mốc thời gian tối đa trong cơ sở dữ liệu.                        |
+| from_datetime  | datetime | Không    | Thời gian bắt đầu, định dạng ISO format. Mặc định là mốc thời gian tối thiểu trong cơ sở dữ liệu.                       |
+| to_datetime    | datetime | Không    | Thời gian kết thúc, định dạng ISO format. Mặc định là mốc thời gian tối đa trong cơ sở dữ liệu.                        |
 | page           | int      | Không    | Số thứ tự của trang (≥ 0).  Mặc định là `0`.                             |
 | page_size      | int      | Không    | Số bản ghi trên mỗi trang. Giá trị cho phép: `10`, `50`, `100`. Mặc định là `10`.           |
 | text_keyword   | string   | Không    | Lọc tin nhắn có chứa từ khóa này (không phân biệt hoa thường).              |
-| phone_num      | string   | Không    | Lọc số điện thoại khớp với mẫu này (không phân biệt hoa thường). |
+
 
  
 
@@ -341,143 +284,71 @@ API này tiến hành lọc các bản ghi dựa trên thời gian, nội dung t
   "error": false,
   "error_message": "",
   "data": [
-    {
-      "stt": 11,
-      "group_id": "group_wIoD_1755504016",
-      "frequency": 1,
-      "ts": "2025-08-27T11:30:48",
-      "agg_message": "ԀϘԄ,có ý kiến thẳng thắn a nói đúng hay sai,kg phải e ngại gì hết...a ",
-      "messages": [
         {
-          "text_sms": "ԀϘԄ,có ý kiến thẳng thắn a nói đúng hay sai,kg phải e ngại gì hết...a ",
-          "count": 1
-        }
-      ]
-    },
-    {
-      "stt": 12,
-      "group_id": "group_wK7L_1755518406",
-      "frequency": 1,
-      "ts": "2025-08-27T11:30:48",
-      "agg_message": "Ԁ̬ЃC nói con mụ bán thất đức vừa thôi, cái trái nhỏ non, E k nói điêu ",
-      "messages": [
-        {
-          "text_sms": "Ԁ̬ЃC nói con mụ bán thất đức vừa thôi, cái trái nhỏ non, E k nói điêu ",
-          "count": 1
-        }
-      ]
-    },
-    {
-      "stt": 13,
-      "group_id": "group_wNLs_1755225954",
-      "frequency": 12,
-      "ts": "2025-08-27T11:30:12",
-      "agg_message": "DATAKM",
-      "messages": [
-        {
-          "text_sms": "DATAKM",
-          "count": 11
+            "stt": 1,
+            "group_id": "group_zs7C_1755500059",
+            "frequency": 5973,
+            "ts": "2025-09-04T04:20:46",
+            "agg_message":"0lq Chuc mung quy höi vien da nhån duoc Çde tri an 899k  truy cap: bit.ly/3BBBjDd t-nghiem TX,sIöt sieu nö,bäÇarät,tlmn..x3 nap lan dau, nap rut 1:1",
+            "messages": [
+                {
+                    "text_sms": "TANG BAN 188K KHI DANGKY TAIKHOAN 88UU KHUYENMAI cuckhung banca,nohu. thuonglon den 15trieu. Lienhe CSKH denhan code: https://nhancode.online/j94e5   MVmUt",
+                    "count": 1
+                },
+                {
+                    "text_sms": "560+1260=thu 1820",
+                    "count": 1
+                },
+                {
+                    "text_sms": "ԀϪȁOk e, mai anh cho rút ống, khi nào chú em muốn về anh cho về, mổ nộ",
+                    "count": 1
+                },
+                {
+                    "text_sms": "WP/F0 0 20220906000903 Lat N 16.57481 deg Lon E 107.89458 deg Alt 7m 13Km/h 2022/09/06 00:09:03 Z",
+                    "count": 1
+                },
+                ...
         },
         {
-          "text_sms": " DATAKM ",
-          "count": 1
+            "stt": 2,
+            "group_id": "group_WKvV_1755226270",
+            "frequency": 8446,
+            "ts": "2025-09-04T04:20:46",
+            "agg_message": "0G2I Çhuc mung quy höi vien da nhån duoc c;;de tri ån 899k truy cåp: bit.ly/3QuRHJM T-nghiem Tai_xiu, S()lt,sieu_NT,baÇarät,tlmn.. x3 nap_lån dåu, nap rut 1:1",
+            "messages": [
+                {
+                    "text_sms": "BONG90 DK nhan 300k,Napdau 210%.LiveCasino,T.Thao,Daga,Xoso,NoHu Hoantra sieu cao 1.75%. Lixi nguoi choi 3TR dau thang! https://bom.so/BONG90-01  GLoyi",
+                    "count": 1
+                },
+                {
+                    "text_sms": "TDTCgamePHOM,XOSO,TAlXlU,XocdiaTLMN,naprut1:1,tagCode: fp2dp3g03jli thuogtoi8888k,chucban trungthu Vve,event nhan88k.tele: thienduongtrochoi2022 .DK: tdtc3.com",
+                    "count": 2
+                },
+                {
+                    "text_sms": "Boc Fun Tang ban code ngau nhien tu 10k den 500k , nap km 125% , choi tai xiu lo de bong da, ma là: A1 http://boc2.fun  pfLuU",
+                    "count": 1
+                },
+                {
+                    "text_sms": "Ԁ̖؄hấy quán Chay Garden thì số 54 ở cạnh đó) Xe máy đi thẳng vào để dư",
+                    "count": 1
+                },
+                {
+                    "text_sms": "Ԁ̼̃ có ác. ",
+                    "count": 1
+                },
+                {
+                    "text_sms": "ԀίԂ anh lại một mk khi hong có dợ..hong có dợ òi anh hạnh phúc vs ai ",
+                    "count": 1
+                },
+                {
+                    "text_sms": "TANG BAN 188K KHI DANGKY TAIKHOAN 88UU KHUYENMAI cuckhung banca,nohu. thuonglon den 15trieu. Lienhe CSKH denhan code: https://nhancode.online/j94e5   OWSQr",
+                    "count": 1
+                }
         }
-      ]
-    },
-    {
-      "stt": 14,
-      "group_id": "group_wQqz_1755516009",
-      "frequency": 1,
-      "ts": "2025-08-27T11:30:18",
-      "agg_message": "từ nay k cần phải đau đầu lên kịch bản và diễn nữa đâu.",
-      "messages": [
-        {
-          "text_sms": "từ nay k cần phải đau đầu lên kịch bản và diễn nữa đâu.",
-          "count": 1
-        }
-      ]
-    },
-    {
-      "stt": 15,
-      "group_id": "group_wRfq_1755226130",
-      "frequency": 1,
-      "ts": "2025-08-27T11:30:13",
-      "agg_message": "Chiều e xuống chị đưa ",
-      "messages": [
-        {
-          "text_sms": "Chiều e xuống chị đưa ",
-          "count": 1
-        }
-      ]
-    },
-    {
-      "stt": 16,
-      "group_id": "group_wU4G_1755551409",
-      "frequency": 1,
-      "ts": "2025-08-27T11:30:38",
-      "agg_message": "A k ngi như za a nag ni cầu xin e mới chịu gap ",
-      "messages": [
-        {
-          "text_sms": "A k ngi như za a nag ni cầu xin e mới chịu gap ",
-          "count": 1
-        }
-      ]
-    },
-    {
-      "stt": 17,
-      "group_id": "group_wX0G_1755587710",
-      "frequency": 1,
-      "ts": "2025-08-27T11:30:12",
-      "agg_message": "DCB:ZCCB2VVHU1SEA9QUIHBR9NVKQVOPQ12RL",
-      "messages": [
-        {
-          "text_sms": "DCB:ZCCB2VVHU1SEA9QUIHBR9NVKQVOPQ12RL",
-          "count": 1
-        }
-      ]
-    },
-    {
-      "stt": 18,
-      "group_id": "group_wXES_1755514809",
-      "frequency": 1,
-      "ts": "2025-08-27T11:30:44",
-      "agg_message": "Ԁό́Chào chị. Em bên phòng khám Dr.Nguyễn. Đã tới lịch điều trị tiếp củ",
-      "messages": [
-        {
-          "text_sms": "Ԁό́Chào chị. Em bên phòng khám Dr.Nguyễn. Đã tới lịch điều trị tiếp củ",
-          "count": 1
-        }
-      ]
-    },
-    {
-      "stt": 19,
-      "group_id": "group_wYmz_1755226170",
-      "frequency": 1,
-      "ts": "2025-08-27T11:25:48",
-      "agg_message": "Ԁϰ̂ lắm ck nhất nhớ vk lắm r vk tối về dt chửi ck cũng dk nửa tối 9h c",
-      "messages": [
-        {
-          "text_sms": "Ԁϰ̂ lắm ck nhất nhớ vk lắm r vk tối về dt chửi ck cũng dk nửa tối 9h c",
-          "count": 1
-        }
-      ]
-    },
-    {
-      "stt": 20,
-      "group_id": "group_wbxl_1755504908",
-      "frequency": 2,
-      "ts": "2025-08-27T11:30:13",
-      "agg_message": "Ԁ̀Ȃ đá 23 một ngàn",
-      "messages": [
-        {
-          "text_sms": "Ԁ̀Ȃ đá 23 một ngàn",
-          "count": 2
-        }
-      ]
-    }
+
   ],
-  "page": 1,
-  "limit": 10,
+  "page": 0,
+  "limit": 100,
   "total": 750
 }
 ```
@@ -498,19 +369,40 @@ API này tiến hành lọc các bản ghi dựa trên thời gian, nội dung t
 ### Định dạng SMSGroupedFrequency {#dinh-dang-smsgroupedfrequency}
 
 ```json
-{
-  "stt": 20,
-  "group_id": "group_wbxl_1755504908",
-  "frequency": 2,
-  "ts": "2025-08-27T11:30:13",
-  "agg_message": "Ԁ̀Ȃ đá 23 một ngàn",
-  "messages": [
+"stt": 2,
+"group_id": "group_WKvV_1755226270",
+"frequency": 8446,
+"ts": "2025-09-04T04:20:46",
+"agg_message": "0G2I Çhuc mung quy höi vien da nhån duoc c;;de tri ån 899k truy cåp: bit.ly/3QuRHJM T-nghiem Tai_xiu, S()lt,sieu_NT,baÇarät,tlmn.. x3 nap_lån dåu, nap rut 1:1",
+"messages": [
     {
-      "text_sms": "Ԁ̀Ȃ đá 23 một ngàn",
-      "count": 2
+        "text_sms": "BONG90 DK nhan 300k,Napdau 210%.LiveCasino,T.Thao,Daga,Xoso,NoHu Hoantra sieu cao 1.75%. Lixi nguoi choi 3TR dau thang! https://bom.so/BONG90-01  GLoyi",
+        "count": 1
+    },
+    {
+        "text_sms": "TDTCgamePHOM,XOSO,TAlXlU,XocdiaTLMN,naprut1:1,tagCode: fp2dp3g03jli thuogtoi8888k,chucban trungthu Vve,event nhan88k.tele: thienduongtrochoi2022 .DK: tdtc3.com",
+        "count": 2
+    },
+    {
+        "text_sms": "Boc Fun Tang ban code ngau nhien tu 10k den 500k , nap km 125% , choi tai xiu lo de bong da, ma là: A1 http://boc2.fun  pfLuU",
+        "count": 1
+    },
+    {
+        "text_sms": "Ԁ̖؄hấy quán Chay Garden thì số 54 ở cạnh đó) Xe máy đi thẳng vào để dư",
+        "count": 1
+    },
+    {
+        "text_sms": "Ԁ̼̃ có ác. ",
+        "count": 1
+    },
+    {
+        "text_sms": "ԀίԂ anh lại một mk khi hong có dợ..hong có dợ òi anh hạnh phúc vs ai ",
+        "count": 1
+    },
+    {
+        "text_sms": "TANG BAN 188K KHI DANGKY TAIKHOAN 88UU KHUYENMAI cuckhung banca,nohu. thuonglon den 15trieu. Lienhe CSKH denhan code: https://nhancode.online/j94e5   OWSQr",
+        "count": 1
     }
-  ]
-}
 ```
 
 | Trường           | Kiểu                     | Mô tả |
@@ -519,24 +411,30 @@ API này tiến hành lọc các bản ghi dựa trên thời gian, nội dung t
 | `group_id`       | `str`                      | ID của nhóm. |
 | `frequency`      | `int`                      | Số lượng tin nhắn đã gửi trong nhóm `group_id`. |
 | `ts`             | `datetime`    | Thời điểm tin nhắn đầu tiên được gửi trong nhóm.|
+| `agg_message`             | `str`    | Tin nhắn tổng hợp.|
 | `messages` | `list` | Danh sách các tin nhắn đã gửi trong nhóm. |
 | `text_sms`        | `str`                      | Nội dung tin nhắn. |
 | `count`          | `int`                      | Tần suất của mỗi `text_sms`. |
 
+
+### Lưu ý
+- Khoảng thời gian giữa `to_datetime` và `from_datetime` phải nằm trong khoảng 1 giờ đồng hồ đổ lại, nếu không sẽ có thông báo lỗi được trả về.
+- Nếu thời gian không được cung cấp sẽ tự động lấy 1 giờ đồng hồ gần nhất.
+- Nếu `from_datetime` không được cung cấp thi `from_datetime` sẽ được tính bằng `to_datetime - 1h`. 
+- Nếu `to_datetime` không được cung cấp thi `to_datetime` sẽ được tính bằng `from_datetime + 1h`. 
 ---
 
 ## GET /frequency/export {#export-get-frequency}
 ### Mô tả {#mo-ta-export-get-frequency}
-API này tiến hành lọc các bản ghi dựa trên thời gian (**giới hạn 1 giờ**), nội dung tin nhắn và số điện thoại. Sau đó tiến hành nhóm theo `group_id` rồi xuất ra dưới dạng file csv để người dùng có thể download.
+API này tiến hành lọc dựa trên thời gian (**giới hạn 1 giờ**) và nội dung tin nhắn. Sau đó tiến hành nhóm theo `group_id`, sau đó tính toán tần suất nhắn tin. Chỉ những `group_id` có **tần suất lớn hơn 20(SMS/h)** mới được giữ lại và xuất ra dưới dạng file csv để người dùng có thể download.
 
 ### Tham số truy vấn {#tham-so-truy-van-export-get-frequency}
 
 | Tên            | Kiểu     | Yêu cầu | Mô tả                                                                      |
 |----------------|----------|----------|----------------------------------------------------------------------------|
-| from_datetime  | datetime | Không    | Thời gian bắt đầu, định dạng `YYYY-MM-DD HH:MM:SS`.                       |
-| to_datetime    | datetime | Không    | Thời gian kết thúc, định dạng `YYYY-MM-DD HH:MM:SS`.                      |
+| from_datetime  | datetime | Không    | Thời gian bắt đầu, định dạng ISO format.                       |
+| to_datetime    | datetime | Không    | Thời gian kết thúc, định dạng ISO format.                      |
 | text_keyword   | string   | Không    | Lọc tin nhắn có chứa từ khóa này (không phân biệt hoa thường).              |
-| phone_num      | string   | Không    | Lọc số điện thoại khớp với mẫu này (không phân biệt hoa thường). |
 
 ### Lưu ý
 - Khoảng thời gian giữa `to_datetime` và `from_datetime` phải nằm trong khoảng 1 giờ đồng hồ đổ lại, nếu không sẽ có thông báo lỗi được trả về.
@@ -552,7 +450,7 @@ Tệp csv chứa nội dung yêu cầu sẽ được tải về máy người d�
 ## PUT /frequency/ {#put-frequency}
 
 ### Mô tả {#mo-ta-put-frequency}
-API này được sử dụng để gửi phản hồi từ người dùng, giúp họ đánh giá liệu một nhóm có phải là spam hay không dựa trên nội dung tin nhắn được gửi trong nhóm
+API này được sử dụng để gửi phản hồi từ người dùng, giúp họ đánh giá liệu một nhóm có phải là spam hay không dựa trên nội dung tin nhắn được gửi trong nhóm.
 
 ### Tham số truy vấn {#tham-so-truy-van-put-frequency}
 

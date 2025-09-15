@@ -4,6 +4,8 @@ from app.routers import frequency
 from fastapi.exceptions import HTTPException
 from fastapi.requests import Request
 from fastapi.responses import JSONResponse
+
+
 app = FastAPI()
 
 @app.exception_handler(HTTPException)

@@ -1,7 +1,31 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from fastapi import HTTPException, status
 from sqlmodel import select
 from sqlalchemy import func
+from app.models import SMS_Data
+
+
+def parse_datetime(dt_str: str) -> datetime:
+    """
+    Convert datetime string to datetime with timezone.
+    """
+
+    if dt_str is None:
+        return None
+
+    dt_str = dt_str.strip()
+    try:
+        if ' ' in dt_str:
+            parts = dt_str.rsplit(' ', 1)
+            dt_str = parts[0] + '+' + parts[1]
+        dt = datetime.fromisoformat(dt_str)
+        return dt
+    except ValueError:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid datetime format: {dt_str}. Use ISO 8601, e.g., 2025-09-10T15:15:00+07:00"
+        )
+
 
 def validate_time_range(
     session,

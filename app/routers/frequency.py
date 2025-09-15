@@ -21,12 +21,18 @@ router = APIRouter(
 @router.get("/")
 async def get_spam_base_on_frequency(
     session: Annotated[Session, Depends(get_session)],
-    from_datetime: Annotated[datetime, Query(description="Time Start: (format: YYYY-MM-DD HH:MM:SS)")] = None,
-    to_datetime: Annotated[datetime, Query(description="Time End: (format: YYYY-MM-DD HH:MM:SS)")] = None,
+    from_datetime: Annotated[str, Query(description="Time Start: (ISO format)")] = None,
+    to_datetime: Annotated[str, Query(description="Time End: (ISO format)")] = None,
     page: Annotated[int, Query(ge=0)] = 0,
     page_size: Annotated[int, Query(description="The number of record in one page", enum=[10, 50, 100])] = 10,
     text_keyword: Annotated[str, Query(description="Filter messages that contain this keyword (case insensitive)")] = None
 ) -> BasePaginatedResponseFrequency:
+    
+    # --- Parse time string ---
+    if from_datetime:
+        from_datetime = parse_datetime(from_datetime)
+    if to_datetime:
+        to_datetime = parse_datetime(to_datetime)
     
     # --- Time validation ---
     from_datetime, to_datetime = validate_time_range(session, from_datetime, to_datetime)
@@ -164,10 +170,17 @@ async def get_spam_base_on_frequency(
 @router.get("/export")
 async def export_frequency_data(
     session: Annotated[Session, Depends(get_session)],
-    from_datetime: Annotated[datetime, Query(description="Time Start: (format: YYYY-MM-DD HH:MM:SS)")] = None,
-    to_datetime: Annotated[datetime, Query(description="Time End: (format: YYYY-MM-DD HH:MM:SS)")] = None,
+    from_datetime: Annotated[str, Query(description="Time Start: (format: YYYY-MM-DD HH:MM:SS)")] = None,
+    to_datetime: Annotated[str, Query(description="Time End: (format: YYYY-MM-DD HH:MM:SS)")] = None,
     text_keyword: Annotated[str, Query(description="Filter messages that contain this keyword (case insensitive)")] = None
 ):
+    
+    # --- Parse time string ---
+    if from_datetime:
+        from_datetime = parse_datetime(from_datetime)
+    if to_datetime:
+        to_datetime = parse_datetime(to_datetime)
+
     # Time validation
     from_datetime, to_datetime = validate_time_range(session, from_datetime, to_datetime)
 
