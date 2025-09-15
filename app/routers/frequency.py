@@ -29,10 +29,8 @@ async def get_spam_base_on_frequency(
 ) -> BasePaginatedResponseFrequency:
     
     # --- Parse time string ---
-    if from_datetime:
-        from_datetime = parse_datetime(from_datetime)
-    if to_datetime:
-        to_datetime = parse_datetime(to_datetime)
+    from_datetime = parse_datetime(from_datetime)
+    to_datetime = parse_datetime(to_datetime)
     
     # --- Time validation ---
     from_datetime, to_datetime = validate_time_range(session, from_datetime, to_datetime)
@@ -176,10 +174,8 @@ async def export_frequency_data(
 ):
     
     # --- Parse time string ---
-    if from_datetime:
-        from_datetime = parse_datetime(from_datetime)
-    if to_datetime:
-        to_datetime = parse_datetime(to_datetime)
+    from_datetime = parse_datetime(from_datetime)
+    to_datetime = parse_datetime(to_datetime)
 
     # Time validation
     from_datetime, to_datetime = validate_time_range(session, from_datetime, to_datetime)
