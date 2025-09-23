@@ -1,16 +1,16 @@
 from typing import Annotated
 from fastapi import APIRouter, Depends, status, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from sqlmodel import Session, select, func, and_, update
+from sqlmodel import Session, select, func, and_, update, or_
 from app.db import get_session
 from app.models import SMS_Data
 from app.schemas import *
 from app.utils import *
 from app.config import settings
-from datetime import datetime
 from collections import defaultdict
 import csv
 import io
+
 
 router = APIRouter(
     prefix="/content",
@@ -42,22 +42,38 @@ async def get_spam_base_on_content(
         filters.append(SMS_Data.sdt_in.ilike(f"%{phone_num}%"))
 
     # --- Base grouped subquery (no offset/limit here) ---
-    base_grouped_subq = (
+    base_subq = (
         select(
             SMS_Data.group_id,
             SMS_Data.sdt_in,
-            func.min(SMS_Data.ts).label("first_ts"),
-            func.count().label("frequency")
+            SMS_Data.ts,
+            SMS_Data.text_sms,
+            func.row_number().over(
+                partition_by=(SMS_Data.group_id, SMS_Data.sdt_in),
+                order_by=SMS_Data.ts.asc()
+            ).label("rn"),
+            func.count().over(
+                partition_by=(SMS_Data.group_id, SMS_Data.sdt_in)
+            ).label("frequency")
         )
         .where(*filters)
-        .group_by(SMS_Data.group_id, SMS_Data.sdt_in)
-        .having(func.count() >= 20)
         .subquery()
+    )
+
+    grouped_query = (
+        select(
+            base_subq.c.group_id,
+            base_subq.c.sdt_in,
+            base_subq.c.frequency,
+            base_subq.c.ts.label("first_ts"),
+            base_subq.c.text_sms.label("agg_message")
+        )
+        .where(base_subq.c.rn == 1, base_subq.c.frequency >= 20)
     )
 
     # --- Count total records ---
     total_records = session.exec(
-        select(func.count()).select_from(base_grouped_subq)
+        select(func.count()).select_from(grouped_query.subquery())
     ).one()
     total_pages = (total_records + page_size - 1) // page_size
 
@@ -84,42 +100,21 @@ async def get_spam_base_on_content(
             }
         )
 
-    # --- Paginated subquery ---
-    paginated_subq = (
-        select(
-            base_grouped_subq.c.group_id,
-            base_grouped_subq.c.sdt_in,
-            base_grouped_subq.c.first_ts,
-            base_grouped_subq.c.frequency,
-        )
-        .order_by(base_grouped_subq.c.first_ts)
+    # --- Paginated records ---
+    grouped_records = session.exec(
+        grouped_query
+        .order_by(base_subq.c.ts)
         .offset(page * page_size)
         .limit(page_size)
-        .subquery()
-    )
-
-    # --- Join back to get agg_message ---
-    grouped_stmt = (
-        select(
-            paginated_subq.c.group_id,
-            paginated_subq.c.sdt_in,
-            paginated_subq.c.first_ts,
-            paginated_subq.c.frequency,
-            SMS_Data.text_sms.label("agg_message")
-        )
-        .join(
-            SMS_Data,
-            and_(
-                SMS_Data.group_id == paginated_subq.c.group_id,
-                SMS_Data.sdt_in == paginated_subq.c.sdt_in,
-                SMS_Data.ts == paginated_subq.c.first_ts
-            )
-        )
-        .order_by(paginated_subq.c.first_ts)
-    )
-    grouped_records = session.exec(grouped_stmt).all()
+    ).all()
 
     # --- Collect IDs for second query ---
+    # group_pairs = {(r.group_id, r.sdt_in) for r in grouped_records}
+    # conditions = [
+    #     and_(SMS_Data.group_id == gid, SMS_Data.sdt_in == sdt)
+    #     for gid, sdt in group_pairs
+    # ]
+
     group_ids = [r.group_id for r in grouped_records]
     phone_numbers = [r.sdt_in for r in grouped_records]
 
@@ -132,9 +127,10 @@ async def get_spam_base_on_content(
             func.count().label("count")
         )
         .where(
+            # or_(*conditions),
             SMS_Data.group_id.in_(group_ids),
             SMS_Data.sdt_in.in_(phone_numbers),
-            SMS_Data.ts.between(from_datetime, to_datetime)  # only time filter
+            *filters
         )
         .group_by(SMS_Data.group_id, SMS_Data.sdt_in, SMS_Data.text_sms)
     )
@@ -174,7 +170,6 @@ async def get_spam_base_on_content(
     )
 
 
-
 @router.get("/export")
 async def export_content_data(
     session: Annotated[Session, Depends(get_session)],
@@ -188,7 +183,7 @@ async def export_content_data(
     from_datetime = parse_datetime(from_datetime)
     to_datetime = parse_datetime(to_datetime)
 
-    # Handle time range 
+    # --- Time validation ---
     from_datetime, to_datetime = validate_time_range(session, from_datetime, to_datetime)
 
     # Create all the filter needed
@@ -263,6 +258,7 @@ def feedback_base_on_content(
     session: Annotated[Session, Depends(get_session)],
     user_feedback: ContentFeedback
 ):
+
     stmt = (
         update(SMS_Data)
         .where(

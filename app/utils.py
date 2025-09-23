@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from fastapi import HTTPException, status
 from sqlmodel import select
 from sqlalchemy import func
-from app.models import SMS_Data
+from app.models import *
 
 
 def parse_datetime(dt_str: str) -> datetime:
@@ -13,18 +13,20 @@ def parse_datetime(dt_str: str) -> datetime:
     if dt_str is None:
         return None
 
-    dt_str = dt_str.strip()
     try:
-        if ' ' in dt_str:
-            parts = dt_str.rsplit(' ', 1)
-            dt_str = parts[0] + '+' + parts[1]
-        dt = datetime.fromisoformat(dt_str)
+        dt = dt_str.replace(' ', '+')
+        dt = datetime.fromisoformat(dt)
+        if dt.tzinfo is None: 
+            raise ValueError("Missing timezone info")
         return dt
     except ValueError:
         raise HTTPException(
             status_code=422,
-            detail=f"Invalid datetime format: {dt_str}. Use ISO 8601, e.g., 2025-09-10T15:15:00+07:00"
+            detail={
+                "message": f"Invalid datetime format: {dt_str}. Use ISO 8601, e.g., 2025-09-10T15:15:00+07:00"
+            }
         )
+
 
 
 def validate_time_range(

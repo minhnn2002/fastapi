@@ -5,7 +5,6 @@ from fastapi.exceptions import HTTPException
 from fastapi.requests import Request
 from fastapi.responses import JSONResponse
 
-
 app = FastAPI()
 
 @app.exception_handler(HTTPException)
@@ -26,7 +25,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
         status_code=exc.status_code,
         content={
             "status_code": exc.status_code,
-            "message": msg,
+            "message": "Failure",
             "data": None,
             "error": True,
             "error_message": msg,
@@ -38,6 +37,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 app.include_router(content.router)
 app.include_router(frequency.router)
+
 
 @app.get("/")
 def root():

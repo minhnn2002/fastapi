@@ -41,21 +41,36 @@ async def get_spam_base_on_frequency(
         filters.append(SMS_Data.text_sms.ilike(f"%{text_keyword}%"))
 
     # --- Base grouped subquery (no offset/limit here) ---
-    base_grouped_subq = (
+    base_subq = (
         select(
             SMS_Data.group_id,
-            func.min(SMS_Data.ts).label("first_ts"),
-            func.count().label("frequency")
+            SMS_Data.ts,
+            SMS_Data.text_sms,
+            func.row_number().over(
+                partition_by=(SMS_Data.group_id),
+                order_by=SMS_Data.ts.asc()
+            ).label("rn"),
+            func.count().over(
+                partition_by=(SMS_Data.group_id)
+            ).label("frequency"),
         )
         .where(*filters)
-        .group_by(SMS_Data.group_id)
-        .having(func.count() >= 20)
         .subquery()
+    )
+
+    grouped_query = (
+        select(
+            base_subq.c.group_id,
+            base_subq.c.frequency,
+            base_subq.c.ts.label("first_ts"),
+            base_subq.c.text_sms.label("agg_message")
+        )
+        .where(base_subq.c.rn == 1, base_subq.c.frequency >= 20)
     )
 
     # --- Count total records ---
     total_records = session.exec(
-        select(func.count()).select_from(base_grouped_subq)
+        select(func.count()).select_from(grouped_query.subquery())
     ).one()
     total_pages = (total_records + page_size - 1) // page_size
 
@@ -82,41 +97,16 @@ async def get_spam_base_on_frequency(
             }
         )
 
-    # --- Paginated subquery ---
-    paginated_subq = (
-        select(
-            base_grouped_subq.c.group_id,
-            base_grouped_subq.c.first_ts,
-            base_grouped_subq.c.frequency,
-        )
-        .order_by(base_grouped_subq.c.first_ts)
+    # --- Paginated records ---
+    grouped_records = session.exec(
+        grouped_query
+        .order_by(base_subq.c.ts)
         .offset(page * page_size)
         .limit(page_size)
-        .subquery()
-    )
-
-    # --- Join back to get agg_message ---
-    grouped_stmt = (
-        select(
-            paginated_subq.c.group_id,
-            paginated_subq.c.first_ts,
-            paginated_subq.c.frequency,
-            SMS_Data.text_sms.label("agg_message")
-        )
-        .join(
-            SMS_Data,
-            and_(
-                SMS_Data.group_id == paginated_subq.c.group_id,
-                SMS_Data.ts == paginated_subq.c.first_ts
-            )
-        )
-        .order_by(paginated_subq.c.first_ts)
-    )
-    grouped_records = session.exec(grouped_stmt).all()
+    ).all()
 
     # --- Collect IDs for second query ---
     group_ids = [r.group_id for r in grouped_records]
-
     # --- Second query: all messages for these groups ---
     msg_stmt = (
         select(
@@ -126,7 +116,7 @@ async def get_spam_base_on_frequency(
         )
         .where(
             SMS_Data.group_id.in_(group_ids),
-            SMS_Data.ts.between(from_datetime, to_datetime)  # only time filter
+            *filters
         )
         .group_by(SMS_Data.group_id, SMS_Data.text_sms)
     )
