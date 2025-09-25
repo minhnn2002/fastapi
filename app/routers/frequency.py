@@ -40,74 +40,39 @@ async def get_spam_base_on_frequency(
     if text_keyword:
         filters.append(SMS_Data.text_sms.ilike(f"%{text_keyword}%"))
 
-    # --- Base grouped subquery (no offset/limit here) ---
-    base_subq = (
+    # --- Aggregation query ---
+    agg_query = (
         select(
             SMS_Data.group_id,
-            SMS_Data.ts,
-            SMS_Data.text_sms,
-            func.row_number().over(
-                partition_by=(SMS_Data.group_id),
-                order_by=SMS_Data.ts.asc()
-            ).label("rn"),
-            func.count().over(
-                partition_by=(SMS_Data.group_id)
-            ).label("frequency"),
+            func.min(SMS_Data.ts).label("first_ts"),
+            func.count().label("frequency"),
+            func.min_by(SMS_Data.text_sms, SMS_Data.ts).label("agg_message")
         )
         .where(*filters)
+        .group_by(SMS_Data.group_id, SMS_Data.sdt_in)
+        .having(func.count() >= 20)
         .subquery()
     )
 
-    grouped_query = (
+    # --- Pagination query ---
+    main_stmt = (
         select(
-            base_subq.c.group_id,
-            base_subq.c.frequency,
-            base_subq.c.ts.label("first_ts"),
-            base_subq.c.text_sms.label("agg_message")
+            agg_query.c.group_id,
+            agg_query.c.first_ts,
+            agg_query.c.frequency,
+            agg_query.c.agg_message,
+            func.count().over().label("total_records")
         )
-        .where(base_subq.c.rn == 1, base_subq.c.frequency >= 20)
-    )
-
-    # --- Count total records ---
-    total_records = session.exec(
-        select(func.count()).select_from(grouped_query.subquery())
-    ).one()
-    total_pages = (total_records + page_size - 1) // page_size
-
-    if total_records == 0:
-        return BasePaginatedResponseFrequency(
-            status_code=200,
-            message="No data found",
-            data=[],
-            error=False,
-            error_message="",
-            page=page,
-            limit=page_size,
-            total=0
-        )
-
-    if page >= total_pages:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "message": f"Page {page} exceeds total pages ({total_pages})",
-                "page": page,
-                "limit": page_size,
-                "total": total_records
-            }
-        )
-
-    # --- Paginated records ---
-    grouped_records = session.exec(
-        grouped_query
-        .order_by(base_subq.c.ts)
+        .order_by(agg_query.c.first_ts, agg_query.c.group_id)
         .offset(page * page_size)
         .limit(page_size)
-    ).all()
+    )
+    grouped_records = session.exec(main_stmt).all()
+    total_records = grouped_records[0].total_records if grouped_records else 0
 
-    # --- Collect IDs for second query ---
+    # --- Second query: all messages ---
     group_ids = [r.group_id for r in grouped_records]
-    # --- Second query: all messages for these groups ---
+
     msg_stmt = (
         select(
             SMS_Data.group_id,
@@ -118,11 +83,11 @@ async def get_spam_base_on_frequency(
             SMS_Data.group_id.in_(group_ids),
             *filters
         )
-        .group_by(SMS_Data.group_id, SMS_Data.text_sms)
+        .group_by(SMS_Data.group_id, SMS_Data.sdt_in, SMS_Data.text_sms)
     )
     all_messages = session.exec(msg_stmt).all()
 
-    # --- Map messages ---
+    # --- Build message dictionary ---
     messages_dict = defaultdict(list)
     for m in all_messages:
         messages_dict[m.group_id].append(
@@ -132,7 +97,7 @@ async def get_spam_base_on_frequency(
     # --- Build result ---
     start_index = page * page_size + 1
     result = [
-        SMSGroupedFrequency(
+        SMSGroupedContent(
             stt=i,
             group_id=r.group_id,
             frequency=r.frequency,
@@ -143,7 +108,7 @@ async def get_spam_base_on_frequency(
         for i, r in enumerate(grouped_records, start=start_index)
     ]
 
-    return BasePaginatedResponseFrequency(
+    return BasePaginatedResponseContent(
         status_code=200,
         message="Success",
         data=result,
@@ -233,32 +198,32 @@ async def export_frequency_data(
 
 
 @router.put("/")
-async def feedback_base_on_frequency(
-    session: Annotated[Session, Depends(get_session)],
-    user_feedback: FrequencyFeedback
+def feedback_base_on_frequency(
+    user_feedback: list[FrequencyFeedback],
+    session: Session = Depends(get_session),
+    
 ):
+    total_updated = 0
 
-    stmt = (
-        update(SMS_Data)
-        .where(
-            SMS_Data.group_id == user_feedback.group_id
+    for item in user_feedback:
+        stmt = (
+            update(SMS_Data)
+            .where(
+                SMS_Data.group_id == item.group_id
+            )
+            .values(feedback=item.feedback)
         )
-        .values(feedback=user_feedback.feedback)
-    )
-    result = session.exec(stmt)
-
-    # Check the result if it is None
-    if result.rowcount == 0:
-        raise HTTPException(
-            status_code=404,
-            detail="No records matched your condition"
-        )
+        result = session.exec(stmt)
+        total_updated += result.rowcount
 
     session.commit()
 
+    if total_updated == 0:
+        raise HTTPException(status_code=404, detail="No records matched your condition")
+
     return BaseResponse(
-        status_code = status.HTTP_200_OK,
-        message = f"Updated {result.rowcount} records",
-        error = False,
-        error_message = None
-    ) 
+        status_code=status.HTTP_200_OK,
+        message=f"Updated {total_updated} records",
+        error=False,
+        error_message=None
+    )

@@ -38,7 +38,6 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 app.include_router(content.router)
 app.include_router(frequency.router)
 
-
 @app.get("/")
 def root():
     return {"message": "Hello World!"}
